@@ -60,6 +60,22 @@ fun main() {
         !detail.code.contains("private") && !detail.guidance.contains("token") &&
         detail.code == "BP-MEDIA3-DECODER"
     })
+    checkNamed("subtitle appearance defaults to readable white",
+        SubtitleAppearance().size == SubtitleSize.STANDARD &&
+        SubtitleAppearance().color == SubtitleColor.WHITE)
+    checkNamed("TV large subtitle font is bigger than compact",
+        SubtitleSize.LARGE.media3Fraction > SubtitleSize.SMALL.media3Fraction)
+    val health = PlaybackHealthRecorder()
+    health.sample(true, false, 0L)
+    health.sample(true, false, 10_000L)
+    health.engineChanged()
+    health.sample(false, true, 11_000L)
+    health.sample(false, true, 12_000L)
+    checkNamed("health errors count rising edges once", health.summary.errorEvents == 1)
+    checkNamed("health tracks bounded buffer time and engine handoffs",
+        health.summary.longestBufferMs == 10_000L && health.summary.engineHandoffs == 1)
+    checkNamed("health metrics exclude media paths or URLs",
+        !health.summary.toString().contains("file://"))
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))

@@ -49,3 +49,10 @@ assert 'initialPlay = !restored' in activity, 'restored videos may not autoplay'
 assert 'rememberActiveDocument(null)' in activity, 'leaving the player must clear saved restoration'
 assert 'savedDocumentUri' in activity and 'savedDocumentTitle' in activity, 'save only one local document'
 print('PASS: safe diagnostic display and paused/permission-bound activity restoration')
+
+assert 'SubtitleSize.entries' in source, 'TV caption size options missing'
+assert 'SubtitleColor.entries' in source, 'high-contrast caption presets missing'
+assert 'Live subtitle styling is not yet supported by LibVLC' in source, 'VLC styling must disclose unsupported state'
+assert 'session.playbackHealth' in source and 'on-device only' in source, 'private session-health UI missing'
+assert 'subtitleAppearance' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'caption appearance not retained in session'
+print('PASS: subtitle accessibility presets and bounded in-session health UI')

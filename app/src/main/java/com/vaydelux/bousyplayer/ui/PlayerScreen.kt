@@ -338,6 +338,13 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                 HorizontalDivider(color = CinemaColor.panelLight)
                 when (menu) {
                     PlayerMenu.OPTIONS -> {
+                        val health = session.playbackHealth
+                        Text("Session health · on-device only", color = CinemaColor.muted)
+                        Text("Buffered polls: ${health.bufferingPercent}% of ${health.samples} · " +
+                            "Errors: ${health.errorEvents} · Engine handoffs: ${health.engineHandoffs} · " +
+                            "Longest buffering: ${health.longestBufferMs / 1000L}s",
+                            color = CinemaColor.muted,
+                            style = MaterialTheme.typography.labelSmall)
                         Text("Playback engine", color = CinemaColor.muted)
                         EngineKind.entries.forEach { other ->
                             ActionButton("${if (session.kind == other) "✓  " else ""}${other.label}", {
@@ -366,6 +373,24 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                             }, modifier = Modifier.fillMaxWidth())
                         }
                         Text("Subtitles", color = CinemaColor.muted)
+                        Text("Caption size", color = CinemaColor.muted)
+                        SubtitleSize.entries.forEach { value ->
+                            ActionButton("${if (session.subtitleAppearance.size == value) "✓  " else ""}${value.label}", {
+                                session.changeSubtitleAppearance(session.subtitleAppearance.copy(size = value))
+                                activate()
+                            }, modifier = Modifier.fillMaxWidth())
+                        }
+                        Text("Caption contrast", color = CinemaColor.muted)
+                        SubtitleColor.entries.forEach { value ->
+                            ActionButton("${if (session.subtitleAppearance.color == value) "✓  " else ""}${value.label}", {
+                                session.changeSubtitleAppearance(session.subtitleAppearance.copy(color = value))
+                                activate()
+                            }, modifier = Modifier.fillMaxWidth())
+                        }
+                        if (session.kind == EngineKind.VLC) {
+                            Text("Live subtitle styling is not yet supported by LibVLC. Use Media3 or libmpv.",
+                                color = CinemaColor.muted, style = MaterialTheme.typography.labelSmall)
+                        }
                         ActionButton("Disable captions", { session.disableSubtitles(); activate() }, modifier = Modifier.fillMaxWidth())
                         screen.tracks.filter { it.kind == TrackKind.SUBTITLE }.forEach { track ->
                             ActionButton("${if (track.selected) "✓  " else ""}${track.label}", {

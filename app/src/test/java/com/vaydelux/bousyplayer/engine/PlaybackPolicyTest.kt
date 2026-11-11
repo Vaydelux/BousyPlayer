@@ -106,6 +106,21 @@ class PlaybackPolicyTest {
         assertFalse(info.guidance.contains("private.test"))
         assertFalse(info.guidance.contains("token="))
     }
+    @Test fun captionAppearanceAndTelemetryRemainBoundedAndPrivate() {
+        assertTrue(SubtitleSize.LARGE.media3Fraction > SubtitleSize.SMALL.media3Fraction)
+        assertEquals(SubtitleColor.WHITE, SubtitleAppearance().color)
+        val recorder = PlaybackHealthRecorder()
+        recorder.sample(true, false, 0L)
+        recorder.sample(true, false, 200_000L)
+        recorder.sample(false, true, 210_000L)
+        recorder.sample(false, true, 220_000L)
+        assertEquals(120_000L, recorder.summary.longestBufferMs)
+        assertEquals(1, recorder.summary.errorEvents)
+        assertEquals(2, recorder.summary.bufferingSamples)
+        repeat(5_000) { recorder.sample(false, false, it.toLong()) }
+        assertTrue(recorder.summary.samples <= 4_096)
+        assertFalse(recorder.summary.toString().contains("file://"))
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))

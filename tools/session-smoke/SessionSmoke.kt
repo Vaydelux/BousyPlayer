@@ -15,6 +15,7 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     var playingRequested = false
     var stalledOnPlay = false
     var pauseCalls = 0
+    var captionStyle: SubtitleAppearance? = null
     var released = 0
     var loadStartMs = -1L
     override fun load(uri: Uri, startMs: Long, shouldPlay: Boolean, subtitle: Uri?) {
@@ -32,6 +33,10 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     override fun release() { released++; chronology.add("release:${type.name}") }
     override fun selectTrack(id: String, kind: TrackKind) = Unit
     override fun disableSubtitles() = Unit
+    override fun applySubtitleAppearance(appearance: SubtitleAppearance): Boolean {
+        captionStyle = appearance
+        return true
+    }
 }
 val ctx = Context()
 fun media(name: String) = MediaSource(Uri.parse("content://files/$name"), name, true)
@@ -495,6 +500,41 @@ fun main() {
         errorSession.diagnostic?.code == "BP-MEDIA3-DECODER" &&
         !errorSession.diagnostic!!.guidance.contains("/sensitive/"))
     errorSession.close()
+
+    val appearanceEngines = mutableListOf<FakeEngine>()
+    val appearanceSession = PlayerSession(ctx, listOf(media("style.mkv")), 0,
+        RecentStore()) { selected ->
+        FakeEngine(selected, mutableListOf()).also(appearanceEngines::add)
+    }
+    appearanceSession.changeSubtitleAppearance(
+        SubtitleAppearance(SubtitleSize.LARGE, SubtitleColor.YELLOW))
+    verify("session applies user caption size and contrast to current decoder",
+        appearanceEngines.last().captionStyle ==
+            SubtitleAppearance(SubtitleSize.LARGE, SubtitleColor.YELLOW))
+    appearanceSession.pause()
+    appearanceSession.switchEngine(EngineKind.MPV)
+    verify("caption appearance survives decoder switch",
+        appearanceEngines.last().captionStyle ==
+            SubtitleAppearance(SubtitleSize.LARGE, SubtitleColor.YELLOW))
+    verify("subtitle appearance does not override explicit Pause",
+        !appearanceSession.wantsPlay && !appearanceEngines.last().playingRequested)
+    appearanceSession.close()
+
+    var healthClock = 0L
+    val healthEngines = mutableListOf<FakeEngine>()
+    val healthSession = PlayerSession(ctx, listOf(media("metric.mp4")), 0,
+        RecentStore(), clockMs = { healthClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(healthEngines::add)
+    }
+    healthEngines.last().current = healthEngines.last().current.copy(loading = true, isPlaying = false)
+    healthClock = 10L
+    healthSession.refresh()
+    healthClock = 6_010L
+    healthSession.refresh()
+    verify("session samples buffering time without retaining media identifiers",
+        healthSession.playbackHealth.samples >= 2 &&
+        healthSession.playbackHealth.longestBufferMs == 6_000L)
+    healthSession.close()
 
     println("PASS: $counter session ownership/behavior checks")
 }

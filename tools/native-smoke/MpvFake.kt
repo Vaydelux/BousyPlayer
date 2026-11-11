@@ -26,6 +26,8 @@ class MPVLib {
         fun event(eventId: Int)
     }
     val commands = mutableListOf<List<String>>()
+    val stringProperties = mutableMapOf<String, String>()
+    val doubleProperties = mutableMapOf<String, Double>()
     var destroyed = false
     var surfaceReady = false
     private val bools = mutableMapOf<String,Boolean>()
@@ -43,9 +45,9 @@ class MPVLib {
     fun getPropertyInt(name: String): Int? = 0
     fun getPropertyString(name: String): String? = null
     fun setPropertyBoolean(name: String, value: Boolean) { bools[name] = value }
-    fun setPropertyDouble(name: String, value: Double) {}
+    fun setPropertyDouble(name: String, value: Double) { doubleProperties[name] = value }
     fun setPropertyInt(name: String, value: Int) {}
-    fun setPropertyString(name: String, value: String) {}
+    fun setPropertyString(name: String, value: String) { stringProperties[name] = value }
     fun attachSurface(surface: Surface) { surfaceReady = true }
     fun detachSurface() { surfaceReady = false }
     fun destroy() { destroyed = true }

@@ -3,6 +3,9 @@ import android.net.Uri
 import android.view.SurfaceView
 import com.vaydelux.bousyplayer.engine.MpvEngine
 import com.vaydelux.bousyplayer.engine.VlcEngine
+import com.vaydelux.bousyplayer.engine.SubtitleAppearance
+import com.vaydelux.bousyplayer.engine.SubtitleSize
+import com.vaydelux.bousyplayer.engine.SubtitleColor
 import dev.jdtech.mpv.MPVLib
 import org.videolan.libvlc.MediaPlayer
 
@@ -12,6 +15,13 @@ fun main() {
     val mpv = MpvEngine(context)
     mpv.load(uri, 30000L, true)
     val mpvFake = checkNotNull(MPVLib.last)
+    check(mpv.applySubtitleAppearance(SubtitleAppearance(SubtitleSize.LARGE, SubtitleColor.YELLOW))) {
+        "libmpv did not accept accessible caption style"
+    }
+    check(mpvFake.doubleProperties["sub-font-size"] == 76.0 &&
+        mpvFake.stringProperties["sub-color"] == "#FFFF00FF") {
+        "libmpv accessible subtitle settings not applied"
+    }
     check(mpvFake.commands.none { it.firstOrNull() == "loadfile" }) { "mpv loaded before surface exists" }
     (mpv.view as SurfaceView).holder.create()
     check(mpvFake.commands.count { it.firstOrNull() == "loadfile" } == 1) { "mpv did not start once after surface" }
@@ -53,6 +63,9 @@ fun main() {
     println("PASS: libmpv explicit seek supersedes delayed resume")
     println("PASS: libmpv waits for surface, loads once and destroys")
     val vlc = VlcEngine(context)
+    check(!vlc.applySubtitleAppearance(SubtitleAppearance())) {
+        "LibVLC must not claim unsupported live subtitle styling"
+    }
     vlc.load(uri, 40000L, true)
     val vlcFake = checkNotNull(MediaPlayer.last)
     check(vlcFake.playCount == 0) { "VLC played before surface exists" }
