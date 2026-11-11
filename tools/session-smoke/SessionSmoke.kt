@@ -15,6 +15,7 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     var playingRequested = false
     var stalledOnPlay = false
     var pauseCalls = 0
+    var snapshotReads = 0
     var failNextPlay = false
     var failNextPause = false
     var captionStyle: SubtitleAppearance? = null
@@ -27,6 +28,7 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
         current = current.copy(position = startMs, isPlaying = shouldPlay)
     }
     override fun snapshot(): PlaybackSnapshot {
+        snapshotReads++
         if (snapshotFailuresRemaining > 0) {
             snapshotFailuresRemaining--
             throw IllegalStateException("simulated native snapshot with secret/credential")
@@ -208,6 +210,9 @@ fun main() {
     waiting.onBackground()
     verify("metadata-only resume never overwrites Continue Watching with zero",
         waitingStore.read().first().positionMs == 82_000L)
+    // Activity lifecycle ON_START precedes user-initiated Play. Native polling
+    // intentionally remains suspended until the user returns to foreground.
+    waiting.onForeground()
     waiting.play()
     waitingEngines.last().current = PlaybackSnapshot(
         position = 2_000L, duration = 300_000L, canSeek = true, loading = false, isPlaying = true
@@ -1024,6 +1029,79 @@ fun main() {
     verify("paused user cannot trigger stalled recovery",
         !recoverySession.recoverStalledPlayback() && recoveryEngines.size == 2)
     recoverySession.close()
+
+
+    // A Compose Activity can remain mounted after ON_STOP. Background polls
+    // must not keep touching native decoders or inflating session metrics.
+    val backgroundEngines = mutableListOf<FakeEngine>()
+    val backgroundSource = media("background-poll.mp4")
+    val backgroundStore = RecentStore()
+    val backgroundSession = PlayerSession(ctx, listOf(backgroundSource), 0,
+        backgroundStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(backgroundEngines::add)
+    }
+    val backgroundNative = backgroundEngines.single()
+    backgroundNative.current = backgroundNative.current.copy(
+        position = 45_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true
+    )
+    backgroundSession.refresh()
+    backgroundSession.onBackground()
+    val pollsAtStop = backgroundNative.snapshotReads
+    val samplesAtStop = backgroundSession.playbackHealth.samples
+    repeat(100) { backgroundSession.refresh() }
+    verify("backgrounded Activity cannot poll a native decoder",
+        backgroundNative.snapshotReads == pollsAtStop)
+    verify("background poll suppression does not inflate playback health counters",
+        backgroundSession.playbackHealth.samples == samplesAtStop)
+    verify("background pause saves trusted video progress",
+        backgroundStore.read().single().positionMs == 45_000L &&
+        !backgroundSession.wantsPlay)
+    backgroundSession.onForeground()
+    backgroundSession.refresh()
+    verify("foreground resumes decoder status polling but never autoplay",
+        backgroundNative.snapshotReads == pollsAtStop + 1 &&
+        !backgroundSession.wantsPlay && !backgroundNative.playingRequested)
+    backgroundSession.close()
+
+    // A failed native status poll preserves the OLD timestamp for display.
+    // It cannot be treated as confirmation of a new explicit seek.
+    val staleSource = media("stale-snapshot-seek.mp4")
+    val staleStore = RecentStore().also {
+        it.update(staleSource, 40_000L, 300_000L)
+    }
+    val staleEngines = mutableListOf<FakeEngine>()
+    val staleSession = PlayerSession(ctx, listOf(staleSource), 0,
+        staleStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(staleEngines::add)
+    }
+    val staleNative = staleEngines.single()
+    staleNative.current = staleNative.current.copy(
+        position = 40_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true
+    )
+    staleSession.refresh()
+    staleNative.delaySeek = true
+    staleNative.snapshotFailuresRemaining = 1
+    staleSession.seekTo(43_000L)
+    verify("unreadable decoder snapshot cannot acknowledge a nearby explicit seek",
+        staleSession.seekDisplayPosition() == 43_000L &&
+        staleSession.playbackStatus.phase == PlaybackPhase.SEEKING &&
+        staleSession.consecutivePlaybackSnapshotFaults == 1)
+    verify("failed snapshot cannot overwrite trusted Continue Watching checkpoint",
+        staleStore.read().single().positionMs == 40_000L)
+    staleNative.current = staleNative.current.copy(position = 43_000L)
+    staleSession.refresh()
+    verify("fresh readable decoder status acknowledges the pending seek",
+        staleSession.seekDisplayPosition() == 43_000L &&
+        staleSession.playbackStatus.phase == PlaybackPhase.PLAYING &&
+        staleSession.consecutivePlaybackSnapshotFaults == 0)
+    // Small movements (<5s) use bounded periodic persistence. Explicit Pause
+    // must commit the acknowledged target, not the pre-seek checkpoint.
+    staleSession.pause()
+    verify("confirmed small backward or forward seek persists on explicit Pause",
+        staleStore.read().single().positionMs == 43_000L)
+    staleSession.close()
 
     println("PASS: $counter session ownership/behavior checks")
 }

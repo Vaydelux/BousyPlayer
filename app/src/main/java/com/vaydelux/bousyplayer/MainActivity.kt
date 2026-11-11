@@ -13,6 +13,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.vaydelux.bousyplayer.data.RecentStore
 import com.vaydelux.bousyplayer.engine.PlayerSession
 import com.vaydelux.bousyplayer.engine.QueuePolicy
@@ -94,6 +97,7 @@ private fun PlayerApp(
     onThemeSelected: (CinemaTheme) -> Unit
 ) {
     val recentsStore = remember { RecentStore(activity) }
+    val lifecycle = LocalLifecycleOwner.current
     var recents by remember { mutableStateOf(recentsStore.readAccessible()) }
     // Construct a new session only AFTER releasing the old one. Keeping a PlayerSession
     // inside remember(queue) can briefly overlap two large native decoder instances.
@@ -145,9 +149,21 @@ private fun PlayerApp(
         val current = session?.source ?: return@LaunchedEffect
         rememberActiveDocument(current)
     }
-    DisposableEffect(activity, session) {
+    DisposableEffect(activity, session, lifecycle) {
         activity.bindPlayerSession(session)
-        onDispose { activity.unbindPlayerSession(session) }
+        val observer = LifecycleEventObserver { _, event ->
+            // A document-provider read grant may become available again while
+            // BousyPlayer is backgrounded. Re-read the visible cards on return,
+            // without rewriting or deleting any persisted history.
+            if (event == Lifecycle.Event.ON_START && session == null) {
+                recents = recentsStore.readAccessible()
+            }
+        }
+        lifecycle.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.lifecycle.removeObserver(observer)
+            activity.unbindPlayerSession(session)
+        }
     }
 
     val filePicker = rememberLauncherForActivityResult(

@@ -156,3 +156,22 @@ assert 'throwing Play disarms intent' in Path('tools/session-smoke/SessionSmoke.
 assert 'throwing Pause tears down decoder' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Pause failure injection test missing'
 assert 'focus gain play exception safely tears down decoder' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Focus gain transport regression absent'
 print('PASS: transport failure fail-safe and explicit stalled-recovery state validation')
+
+sessionPolicy = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+recentStore = Path('app/src/main/java/com/vaydelux/bousyplayer/data/RecentStore.kt').read_text()
+assert 'if (closed || backgrounded) return' in sessionPolicy, 'Background native polling gate missing'
+assert 'val timelineAcknowledged = snapshotReadable && acknowledgePosition(snapshot)' in sessionPolicy, 'Untrusted status must not acknowledge seeks'
+assert 'backgrounded = true' in sessionPolicy and 'backgrounded = false' in sessionPolicy, 'Background lifecycle gate missing'
+assert 'return all.filter {' in recentStore, 'History must hide unavailable cards without mutating disk'
+assert 'if (accessible.size != all.size) write(accessible)' not in recentStore, 'Do not erase SAF history on missing grants'
+assert 'isVisibleWithReadGrant' in recentStore, 'History filter needs explicit grant policy'
+sessionSmoke = Path('tools/session-smoke/SessionSmoke.kt').read_text()
+assert 'backgrounded Activity cannot poll a native decoder' in sessionSmoke, 'Background poll regression missing'
+assert 'unreadable decoder snapshot cannot acknowledge a nearby explicit seek' in sessionSmoke, 'Stale seek acknowledgement regression missing'
+print('PASS: background polling suspension, fresh seek acknowledgement and non-destructive history filter')
+
+activitySourceV31 = Path('app/src/main/java/com/vaydelux/bousyplayer/MainActivity.kt').read_text()
+assert 'event == Lifecycle.Event.ON_START && session == null' in activitySourceV31, 'Home must recheck SAF read permissions on foreground return'
+assert 'recents = recentsStore.readAccessible()' in activitySourceV31, 'SAF grant restoration must make history cards visible again'
+assert 'lifecycle.lifecycle.removeObserver(observer)' in activitySourceV31, 'Activity foreground history observer must be removed'
+print('PASS: background-to-home SAF permission refresh without irreversible history loss')

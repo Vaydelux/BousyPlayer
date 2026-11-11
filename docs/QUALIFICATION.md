@@ -1,4 +1,4 @@
-# Bousy Player v0.30 — Qualification gates
+# Bousy Player v0.31 — Qualification gates
 
 Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objects in both ABI APKs and blocks executable stacks, writable/executable segments, text relocations, and cross-ABI mismatches. It does NOT determine native upstream versions or CVE status, device playback or production signing.
 
@@ -22,7 +22,8 @@ Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objec
 | v0.27 CycloneDX Maven inventory and fail-closed OSV | PASS: [main release #2](https://github.com/Vaydelux/BousyPlayer/actions/runs/43070243504) |
 | v0.28 shipped ELF hashes/Build IDs, hardening checks, native file SBOM | PASS: [main release #3](https://github.com/Vaydelux/BousyPlayer/actions/runs/43076247076) |
 | v0.29 shared themes, adaptive compact recovery UI, manual prolonged buffer handling | PASS: [main release #4](https://github.com/Vaydelux/BousyPlayer/actions/runs/43080232006) |
-| v0.30 transport command exception safety, stale recovery guard, timeline continuity | PENDING v0.30 CI and main prerelease; physical devices unverified |
+| v0.30 transport command exception safety, stale recovery guard, timeline continuity | PASS: [main release #5](https://github.com/Vaydelux/BousyPlayer/actions/runs/43087769302) |
+| v0.31 background poll suspension, trusted seek snapshots, non-destructive SAF history | PENDING v0.31 CI and main debug prerelease; device tests not run |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -79,3 +80,9 @@ The same Maven advisory, native ELF, two APK, Android lint, JVM session/native s
 ## v0.30 additional fail-safe qualification
 
 Injected native Play/Pause exceptions must disarm Play intent, abandon audio focus, release the failing decoder, surface only an opaque UI error and keep Continue Watching's last trusted position. Audio-focus recovery must follow the same rule; delayed rebuffer recovery cannot restart once a user pauses. Native seek exceptions leave the previous valid seek/resume intact while notifying the user. Android CI runs these simulated ownership assertions against the real PlayerSession source, but the actual device/audio stack is not exercised.
+
+## v0.31 regression requirements
+
+The real PlayerSession source is exercised under the deterministic Kotlin JVM suite. A lifecycle ON_STOP must take one final checkpoint and pause, then all subsequent `refresh()` polls in the background must perform zero native decoder reads and zero health-counter updates. ON_START enables polling but never autoplay. When a decoder snapshot throws during an explicit seek, the previously captured timestamp cannot acknowledge the new target or replace Continue Watching; only a subsequent readable decoder status may confirm it. RecentStore must not mutate persistent history merely because a document-provider grant is absent from the current read-permission enumeration.
+
+The existing Maven OSV and native ELF, Android unit/compile/lint and ABI split APK checks are unchanged. Android device instrumentation remains compiled but not executed in hosted CI.

@@ -30,6 +30,10 @@ class RecentStorePrivacyInstrumentedTest {
             store.update(MediaSource(Uri.parse("https://example.org/movie.m3u8"),
                 "stream", false), 2_000L, 5_000L)
             assertEquals(1, store.read().size)
+            // Missing or temporarily revoked grants may hide a card, but must
+            // never erase the checkpoint the user explicitly saved.
+            store.readAccessible()
+            assertEquals(1, store.read().size)
             store.clear()
             assertTrue(store.read().isEmpty())
         } finally {

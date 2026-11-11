@@ -315,7 +315,9 @@ class PlayerSession(
     }
 
     fun refresh() {
-        if (closed) return
+        // Compose may remain mounted while Android has stopped the Activity.
+        // Never poll native decoders or count health samples in the background.
+        if (closed || backgrounded) return
         val snapshotReadable = engine?.let(::readDecoderSnapshot) ?: true
         healthRecorder.sample(
             buffering = snapshot.loading && wantsPlay && !suspendedByFocus && snapshot.error == null,
@@ -327,7 +329,9 @@ class PlayerSession(
         // A native decoder can briefly advance at 0:02 while its requested 1:22
         // resume seek is still pending. That provisional playback does not count as
         // a successful startup, or a subsequent decoder failure would never fall back.
-        val timelineAcknowledged = acknowledgePosition(snapshot)
+        // Failed status reads retain the previous timestamp. Do not let that
+        // stale value acknowledge an explicit seek or pending resume.
+        val timelineAcknowledged = snapshotReadable && acknowledgePosition(snapshot)
         playbackStatus = phaseTracker.observe(PlaybackPhaseInput(
             hasEngine = engine != null,
             requestedPlay = wantsPlay,
@@ -680,13 +684,15 @@ class PlayerSession(
         lastSavedPosition = savedPosition
     }
     fun onBackground() {
-        if (closed) return
-        backgrounded = true
-        // Save the decoder's authoritative timeline before a background interruption.
+        if (closed || backgrounded) return
+        // Make the final explicit checkpoint before suspending 400ms polling.
+        // pause() performs one final refresh and persists trusted progress.
         latestPosition()
         pause()
+        backgrounded = true
     }
     fun onForeground() {
+        if (closed) return
         backgrounded = false
         // No implicit autoplay after Activity/OS lifecycle transitions.
     }

@@ -34,8 +34,10 @@ class RecentStore(context: Context) {
     }.getOrDefault(emptyList())
 
     /**
-     * Prune revoked document grants before displaying an unusable Continue Watching card.
-     * A grant is necessary but not sufficient: cloud providers may still be offline.
+     * Hide unavailable SAF documents but NEVER delete their checkpoints merely
+     * because a provider/OEM temporarily omits a persisted read grant. The
+     * user may explicitly Clear history; an observed permission snapshot is
+     * not proof of permanent revocation or intent to forget.
      */
     fun readAccessible(): List<Entry> {
         val all = read()
@@ -44,10 +46,10 @@ class RecentStore(context: Context) {
         val granted = runCatching {
             prefsContext.contentResolver.persistedUriPermissions
                 .asSequence().filter { it.isReadPermission }.map { it.uri.toString() }.toSet()
-        }.getOrNull() ?: return all
-        val accessible = all.filter { it.source.uri.toString() in granted }
-        if (accessible.size != all.size) write(accessible)
-        return accessible
+        }.getOrNull()
+        return all.filter {
+            HistoryPolicy.isVisibleWithReadGrant(it.source.uri.toString(), granted)
+        }
     }
 
     fun update(source: MediaSource, positionMs: Long, durationMs: Long) {
