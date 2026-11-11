@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.BousyPlayer" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#061426</item>
+        <item name="android:navigationBarColor">#061426</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+</resources>
