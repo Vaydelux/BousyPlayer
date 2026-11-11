@@ -660,5 +660,29 @@ fun main() {
         mkvResume.kind == EngineKind.VLC && mkvResumeEngines.size == 2)
     mkvResume.close()
 
+    // Media3 may report a requested nonzero starting offset while still
+    // buffering. A provisional timestamp must not mark the decoder "ready".
+    var provisionalClock = 0L
+    val provisionalSource = media("provisional-start.mkv")
+    val provisionalStore = RecentStore().also {
+        it.update(provisionalSource, 88_000L, 300_000L)
+    }
+    val provisionalEngines = mutableListOf<FakeEngine>()
+    val provisionalSession = PlayerSession(ctx, listOf(provisionalSource), 0,
+        provisionalStore, clockMs = { provisionalClock }) { kind ->
+        FakeEngine(kind, mutableListOf()).also(provisionalEngines::add)
+    }
+    provisionalEngines.last().current = PlaybackSnapshot(
+        position = 88_000L, duration = 300_000L, loading = true,
+        isPlaying = false, canSeek = true
+    )
+    provisionalClock = 25_000L
+    provisionalSession.refresh()
+    verify("provisional saved MKV timestamp cannot hide startup stall",
+        provisionalSession.kind == EngineKind.VLC && provisionalEngines.size == 2)
+    verify("stalled MKV with provisional timeline keeps saved position",
+        provisionalEngines.last().loadStartMs == 88_000L)
+    provisionalSession.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

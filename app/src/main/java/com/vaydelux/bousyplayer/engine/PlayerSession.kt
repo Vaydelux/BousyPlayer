@@ -247,8 +247,13 @@ class PlayerSession(
         // resume seek is still pending. That provisional playback does not count as
         // a successful startup, or a subsequent decoder failure would never fall back.
         val timelineAcknowledged = acknowledgePosition(snapshot)
+        // A saved resume can make Media3 expose position=1:04 before it has
+        // rendered a single frame. A nonzero *buffering* timestamp must not
+        // disable startup recovery. Require actual Play, EOF, or a ready
+        // non-buffering timeline before considering this decoder established.
         if (timelineAcknowledged &&
-            (snapshot.isPlaying || snapshot.position > 0L || snapshot.ended)
+            (snapshot.isPlaying || snapshot.ended ||
+                (!snapshot.loading && snapshot.position > 0L))
         ) engineEverReady = true
         val localDocument = source.uri.scheme == "content"
         val stalled = PlaybackPolicy.shouldAutoFallbackNativeStall(
@@ -285,9 +290,10 @@ class PlayerSession(
             )) {
             compatibilityFallbackAttempted = true
             val position = latestPosition()
+            val timedOutWithoutError = stalledMkv && snapshot.error == null
             kind = EngineKind.VLC
             open(index, position)
-            if (engine != null) message = if (stalledMkv && snapshot.error == null) {
+            if (engine != null) message = if (timedOutWithoutError) {
                 "Media3 MKV startup timed out; switched to LibVLC"
             } else {
                 "Media3 could not start this MKV; using LibVLC"
