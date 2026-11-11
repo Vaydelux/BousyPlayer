@@ -84,3 +84,9 @@ assert 'Lifecycle.Event.ON_STOP -> session.onBackground()' in source, 'backgroun
 instrumentation = Path('app/src/androidTest/java/com/vaydelux/bousyplayer/MainActivityLifecycleTest.kt')
 assert instrumentation.is_file() and 'scenario.recreate()' in instrumentation.read_text(), 'Android lifecycle instrumentation source missing'
 print('PASS: activity memory-trim binding, foreground reentry and instrumentation source')
+
+assert 'PlaybackPhase.REBUFFERING' in source, 'loading UI must distinguish rebuffer from startup'
+assert 'PlaybackPhase.SEEK_DELAYED' in source, 'nonfatal seek-delay guidance missing'
+assert 'session.playbackStatus.phase.label' in source, 'player options must show playback phase'
+assert 'phaseTracker.explicitSeekRequested(clockMs())' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'explicit seek watchdog missing'
+print('PASS: startup/rebuffer/seek-delay UI and safe playback phase diagnostics')

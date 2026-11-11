@@ -41,6 +41,9 @@ class PlayerSession(
     var subtitleAppearance by mutableStateOf(SubtitleAppearance())
         private set
     private val healthRecorder = PlaybackHealthRecorder()
+    private val phaseTracker = PlaybackPhaseTracker()
+    var playbackStatus by mutableStateOf(PlaybackPhaseReport(PlaybackPhase.STARTING))
+        private set
     private val retryGate = DecoderRetryGate()
     private var backgrounded = false
     val playbackHealth: PlaybackHealth get() = healthRecorder.summary
@@ -102,6 +105,7 @@ class PlayerSession(
         onGain = {
             if (PlaybackPolicy.resumeAfterFocusGain(wantsPlay, suspendedByFocus, closed)) {
                 restartUnconfirmedNativeStartupWindow()
+                phaseTracker.resumeAfterSuspension(clockMs())
                 suspendedByFocus = false
                 runCatching { engine?.play() }
                 refresh()
@@ -171,6 +175,8 @@ class PlayerSession(
         }
         index = newIndex
         snapshot = PlaybackSnapshot()
+        phaseTracker.reset()
+        playbackStatus = PlaybackPhaseReport(PlaybackPhase.STARTING)
         engineEverReady = false
         nativeStartupAtMs = clockMs()
         val last = recents.read().firstOrNull { it.source.uri == source.uri }
@@ -247,6 +253,17 @@ class PlayerSession(
         // resume seek is still pending. That provisional playback does not count as
         // a successful startup, or a subsequent decoder failure would never fall back.
         val timelineAcknowledged = acknowledgePosition(snapshot)
+        playbackStatus = phaseTracker.observe(PlaybackPhaseInput(
+            hasEngine = engine != null,
+            requestedPlay = wantsPlay,
+            focusSuspended = suspendedByFocus,
+            loading = snapshot.loading,
+            isPlaying = snapshot.isPlaying,
+            ended = snapshot.ended,
+            hasError = snapshot.error != null,
+            seekPending = !resumePositionAcknowledged || pendingSeekToStart,
+            nowMs = clockMs()
+        ))
         // A saved resume can make Media3 expose position=1:04 before it has
         // rendered a single frame. A nonzero *buffering* timestamp must not
         // disable startup recovery. Require actual Play, EOF, or a ready
@@ -353,7 +370,10 @@ class PlayerSession(
         }
         // A user may resume after hours of Pause. Give a still-unconfirmed native
         // startup a fresh active window rather than triggering instant fallback.
-        if (!wantsPlay || suspendedByFocus) restartUnconfirmedNativeStartupWindow()
+        if (!wantsPlay || suspendedByFocus) {
+            restartUnconfirmedNativeStartupWindow()
+            phaseTracker.resumeAfterSuspension(clockMs())
+        }
         suspendedByFocus = false
         wantsPlay = true
         message = null
@@ -380,6 +400,7 @@ class PlayerSession(
         lastAttemptedPositionMs = target
         resumePositionAcknowledged = false
         pendingSeekToStart = target == 0L
+        phaseTracker.explicitSeekRequested(clockMs())
         refresh()
     }
     fun seekBy(deltaMs: Long) {
@@ -535,6 +556,8 @@ class PlayerSession(
         suspendedByFocus = false
         snapshot = snapshot.copy(position = position, isPlaying = false, canSeek = false,
             loading = false, error = null, tracks = emptyList())
+        phaseTracker.reset()
+        playbackStatus = PlaybackPhaseReport(PlaybackPhase.PAUSED)
         message = "Playback resources freed in the background. Press Play to continue."
     }
     fun close() {

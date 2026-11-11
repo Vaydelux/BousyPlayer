@@ -294,3 +294,85 @@ class DecoderRetryGate(
 object MemoryTrimPolicy {
     fun shouldReleaseBackgroundDecoder(level: Int): Boolean = level >= 20
 }
+
+/**
+ * Privacy-safe observations of session progress. These phases are display-only:
+ * the tracker never calls play(), seek(), retry(), or changes engine selection.
+ */
+enum class PlaybackPhase(val label: String) {
+    STARTING("Starting playback"),
+    PLAYING("Playing"),
+    REBUFFERING("Rebuffering"),
+    SEEKING("Seeking"),
+    SEEK_DELAYED("Seek not yet confirmed"),
+    PAUSED("Paused"),
+    WAITING("Waiting for decoder"),
+    ENDED("Finished"),
+    ERROR("Playback unavailable")
+}
+
+data class PlaybackPhaseInput(
+    val hasEngine: Boolean,
+    val requestedPlay: Boolean,
+    val focusSuspended: Boolean,
+    val loading: Boolean,
+    val isPlaying: Boolean,
+    val ended: Boolean,
+    val hasError: Boolean,
+    val seekPending: Boolean,
+    val nowMs: Long
+)
+
+data class PlaybackPhaseReport(val phase: PlaybackPhase, val phaseDurationMs: Long = 0L)
+
+class PlaybackPhaseTracker(private val seekWarningMs: Long = 12_000L) {
+    private var hasPlayed = false
+    private var explicitSeekStartedMs: Long? = null
+    private var currentPhase: PlaybackPhase? = null
+    private var currentPhaseStartedMs = 0L
+
+    fun reset() {
+        hasPlayed = false
+        explicitSeekStartedMs = null
+        currentPhase = null
+        currentPhaseStartedMs = 0L
+    }
+
+    fun explicitSeekRequested(nowMs: Long) {
+        explicitSeekStartedMs = nowMs
+    }
+
+    /** Ignore time spent manually paused or waiting for audio focus. */
+    fun resumeAfterSuspension(nowMs: Long) {
+        if (explicitSeekStartedMs != null) explicitSeekStartedMs = nowMs
+    }
+
+    fun observe(input: PlaybackPhaseInput): PlaybackPhaseReport {
+        if (input.isPlaying && !input.hasError) hasPlayed = true
+        if (!input.seekPending) explicitSeekStartedMs = null
+        val pendingAt = explicitSeekStartedMs
+        val phase = when {
+            input.hasError -> PlaybackPhase.ERROR
+            input.ended -> PlaybackPhase.ENDED
+            !input.requestedPlay || input.focusSuspended -> PlaybackPhase.PAUSED
+            pendingAt != null && input.seekPending &&
+                input.nowMs >= pendingAt &&
+                input.nowMs - pendingAt >= seekWarningMs -> PlaybackPhase.SEEK_DELAYED
+            pendingAt != null && input.seekPending -> PlaybackPhase.SEEKING
+            input.loading && hasPlayed -> PlaybackPhase.REBUFFERING
+            input.loading -> PlaybackPhase.STARTING
+            input.isPlaying -> PlaybackPhase.PLAYING
+            !input.hasEngine -> PlaybackPhase.STARTING
+            hasPlayed -> PlaybackPhase.WAITING
+            else -> PlaybackPhase.STARTING
+        }
+        if (phase != currentPhase || input.nowMs < currentPhaseStartedMs) {
+            currentPhase = phase
+            currentPhaseStartedMs = input.nowMs
+        }
+        return PlaybackPhaseReport(
+            phase,
+            (input.nowMs - currentPhaseStartedMs).coerceIn(0L, 3_600_000L)
+        )
+    }
+}

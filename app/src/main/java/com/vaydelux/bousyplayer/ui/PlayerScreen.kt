@@ -61,10 +61,11 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
         }
     }
     BackHandler { goBack() }
-    LaunchedEffect(session, screen.loading, screen.error) {
+    LaunchedEffect(session, session.playbackStatus.phase, screen.error) {
         showBuffering = false
-        if (screen.loading && screen.error == null) {
-            delay(350) // no flashing overlay for fast initial loads or brief rebuffers
+        if (session.playbackStatus.phase == PlaybackPhase.STARTING ||
+            session.playbackStatus.phase == PlaybackPhase.REBUFFERING) {
+            delay(350) // fast initial starts/rebuffers should not flash
             showBuffering = true
         }
     }
@@ -187,13 +188,30 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                     color = CinemaColor.text)
             }
         }
-        if (showBuffering && screen.loading && screen.error == null) {
+        if (showBuffering &&
+            (session.playbackStatus.phase == PlaybackPhase.STARTING ||
+                session.playbackStatus.phase == PlaybackPhase.REBUFFERING) &&
+            screen.error == null) {
             Surface(
                 color = CinemaColor.panel.copy(alpha = .87f),
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = 18.dp)
-            ) { Text("Buffering…", Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                color = CinemaColor.text) }
+            ) { Text(
+                session.playbackStatus.phase.label + "…",
+                Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                color = CinemaColor.text
+            ) }
+        }
+        if (session.playbackStatus.phase == PlaybackPhase.SEEK_DELAYED && screen.error == null) {
+            Surface(
+                color = CinemaColor.panel.copy(alpha = .92f),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 18.dp)
+            ) {
+                Text("Seek not confirmed. Try seeking again or select another engine.",
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color = CinemaColor.text)
+            }
         }
         screen.error?.let { error ->
             Column(Modifier.align(Alignment.Center).background(CinemaColor.panel, MaterialTheme.shapes.large)
@@ -347,6 +365,10 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                 when (menu) {
                     PlayerMenu.OPTIONS -> {
                         val health = session.playbackHealth
+                        Text("Playback phase: ${session.playbackStatus.phase.label} · " +
+                            "${session.playbackStatus.phaseDurationMs / 1000L}s",
+                            color = CinemaColor.muted,
+                            style = MaterialTheme.typography.labelSmall)
                         Text("Session health · on-device only", color = CinemaColor.muted)
                         Text("Buffered polls: ${health.bufferingPercent}% of ${health.samples} · " +
                             "Errors: ${health.errorEvents} · Engine handoffs: ${health.engineHandoffs} · " +

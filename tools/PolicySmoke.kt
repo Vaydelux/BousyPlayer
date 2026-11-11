@@ -125,6 +125,27 @@ fun main() {
         !MemoryTrimPolicy.shouldReleaseBackgroundDecoder(15))
     checkNamed("UI hidden memory trim permits background release",
         MemoryTrimPolicy.shouldReleaseBackgroundDecoder(20))
+    val stage = PlaybackPhaseTracker()
+    fun phase(now: Long, playing: Boolean = false, loading: Boolean = true,
+              seekPending: Boolean = false): PlaybackPhase =
+        stage.observe(PlaybackPhaseInput(true, true, false, loading, playing,
+            false, false, seekPending, now)).phase
+    checkNamed("first decoder buffering is startup", phase(0) == PlaybackPhase.STARTING)
+    checkNamed("active video is playing", phase(1_000, playing = true, loading = false) == PlaybackPhase.PLAYING)
+    checkNamed("buffering after playback is rebuffering", phase(2_000) == PlaybackPhase.REBUFFERING)
+    stage.explicitSeekRequested(3_000)
+    checkNamed("manual seek is pending before warning", phase(14_999, seekPending = true) == PlaybackPhase.SEEKING)
+    checkNamed("manual seek emits nonfatal warning at 12s", phase(15_000, seekPending = true) == PlaybackPhase.SEEK_DELAYED)
+    checkNamed("decoder confirmation clears seek warning", phase(15_100, playing = true, loading = false) == PlaybackPhase.PLAYING)
+    val focusStage = PlaybackPhaseTracker()
+    focusStage.explicitSeekRequested(0)
+    val focusPause = focusStage.observe(PlaybackPhaseInput(true, true, true, true,
+        false, false, false, true, 90_000))
+    focusStage.resumeAfterSuspension(100_000)
+    val focusResume = focusStage.observe(PlaybackPhaseInput(true, true, false, true,
+        false, false, false, true, 100_001))
+    checkNamed("focus suspension hides seek warning until new active period",
+        focusPause.phase == PlaybackPhase.PAUSED && focusResume.phase == PlaybackPhase.SEEKING)
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))

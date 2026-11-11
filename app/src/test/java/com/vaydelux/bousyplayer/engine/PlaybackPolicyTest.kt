@@ -177,6 +177,41 @@ class PlaybackPolicyTest {
             assertTrue(MemoryTrimPolicy.shouldReleaseBackgroundDecoder(level))
         }
     }
+    @Test fun playbackPhaseTrackerDistinguishesStartRebufferAndDelayedSeek() {
+        val tracker = PlaybackPhaseTracker()
+        fun observe(
+            now: Long, playing: Boolean = false, loading: Boolean = true,
+            seekPending: Boolean = false, paused: Boolean = false,
+            error: Boolean = false
+        ): PlaybackPhase = tracker.observe(PlaybackPhaseInput(
+            true, !paused, false, loading, playing, false, error, seekPending, now
+        )).phase
+        assertEquals(PlaybackPhase.STARTING, observe(0))
+        assertEquals(PlaybackPhase.PLAYING, observe(100, playing = true, loading = false))
+        assertEquals(PlaybackPhase.REBUFFERING, observe(200))
+        tracker.explicitSeekRequested(1_000)
+        assertEquals(PlaybackPhase.SEEKING, observe(12_999, seekPending = true))
+        assertEquals(PlaybackPhase.SEEK_DELAYED, observe(13_000, seekPending = true))
+        assertEquals(PlaybackPhase.PAUSED, observe(80_000, seekPending = true, paused = true))
+        tracker.resumeAfterSuspension(90_000)
+        assertEquals(PlaybackPhase.SEEKING, observe(90_001, seekPending = true))
+        assertEquals(PlaybackPhase.PLAYING,
+            observe(90_002, playing = true, loading = false))
+        assertEquals(PlaybackPhase.ERROR, observe(90_003, error = true))
+        tracker.reset()
+        assertEquals(PlaybackPhase.STARTING, observe(0))
+    }
+
+    @Test fun playbackPhaseReportsContainNoSourceDataAndRemainBounded() {
+        val tracker = PlaybackPhaseTracker()
+        val start = tracker.observe(PlaybackPhaseInput(
+            true, true, false, true, false, false, false, false, 0))
+        val late = tracker.observe(PlaybackPhaseInput(
+            true, true, false, true, false, false, false, false, Long.MAX_VALUE))
+        assertEquals(PlaybackPhase.STARTING, start.phase)
+        assertEquals(3_600_000L, late.phaseDurationMs)
+        assertFalse(late.toString().contains("content://"))
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))
