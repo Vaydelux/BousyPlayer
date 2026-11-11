@@ -1,8 +1,8 @@
-# Bousy Player v0.25 — Android TV / phone / tablet
+# Bousy Player v0.26 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.24 passed [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580), including playback-session and native-adapter regressions, Android unit tests, lint and ARM32/ARM64 APK validation. v0.25 adds latched decoder-status fault handling and switch-time read protection; v0.25 remains unqualified until its own CI run passes. Physical codec playback, D-pad controls and instrumented tests have not been executed on devices.
+> **Qualification status:** v0.25 passed [GitHub Actions #32](https://github.com/Vaydelux/BousyPlayer/actions/runs/43047420473), including JVM session/native smoke, Android unit tests/lint and two ABI APK checks. v0.26 adds local-history privacy, hardened URL validation and least-privilege CI; it remains pending its own passing CI and publication. Hardware codec support, real D-pad navigation and instrumentation execution still require devices.
 
 ## v0.13 core hardening
 
@@ -105,6 +105,14 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **One guarded status-read path:** Timeline reads during switching and lifecycle cleanup now share the same capped failure counter used by regular refresh polls. Failed reads cannot confirm pending seeks, imply EOF, authorize stale controls, or overwrite Continue Watching.
 - **New regression coverage:** JVM real-session smoke cases verify MPV/MKV no-handoff behavior, stable fatal state, manual Retry, preserved MKV resume position and switch-time read diagnostics. On-device decoding and remote behavior remain unverified.
 
+## v0.26 — Enterprise privacy and release security
+
+- **Confirm-before-clear history:** Home includes a local Continue Watching reset action. It erases saved playback progress without deleting files or revoking Android document permissions.
+- **Bounded persistence:** Saved document IDs are limited to 2,048 characters, titles to 140 characters with control/bidi override characters removed, durations to 30 days, and saved history JSON to 65,536 characters. Duplicate URIs are deduplicated on read. Streaming URLs remain excluded.
+- **Stricter HTTPS input:** URLs must use HTTPS without userinfo, fragments, raw controls, encoded CR/LF, invalid ports or excess length (8,192 characters). Valid signed media URLs and explicit valid ports remain accepted.
+- **Isolated release permissions:** Branch and PR qualification workflows use read-only repository tokens. A separate main-only workflow rebuilds and qualifies both APKs before uploading checksum-verified debug prerelease assets.
+- **Regression gates:** URL/history unit and smoke tests, source UI privacy safeguards and compile-only RecentStore Android instrumentation. Physical device playback, native redirects and runtime security remain outstanding.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -155,7 +163,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.24 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.26 qualification results.
 
 ## Scope / known limitations
 
