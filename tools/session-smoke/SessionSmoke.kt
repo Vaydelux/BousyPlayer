@@ -15,6 +15,8 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     var playingRequested = false
     var stalledOnPlay = false
     var pauseCalls = 0
+    var failNextPlay = false
+    var failNextPause = false
     var captionStyle: SubtitleAppearance? = null
     var released = 0
     var loadStartMs = -1L
@@ -31,8 +33,23 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
         }
         return current
     }
-    override fun play() { playingRequested = true; current = current.copy(isPlaying = !stalledOnPlay) }
-    override fun pause() { pauseCalls++; playingRequested = false; current = current.copy(isPlaying = false) }
+    override fun play() {
+        if (failNextPlay) {
+            failNextPlay = false
+            throw IllegalStateException("synthetic play failed https://secret.example/video?token=private")
+        }
+        playingRequested = true
+        current = current.copy(isPlaying = !stalledOnPlay)
+    }
+    override fun pause() {
+        pauseCalls++
+        if (failNextPause) {
+            failNextPause = false
+            throw IllegalStateException("synthetic pause failed private://file")
+        }
+        playingRequested = false
+        current = current.copy(isPlaying = false)
+    }
     var delaySeek = false
     var snapshotFailuresRemaining = 0
     var seekCalls = 0
@@ -922,6 +939,91 @@ fun main() {
         switchStatus.kind == EngineKind.VLC &&
         switchEngines.last().loadStartMs == 74_000L)
     switchStatus.close()
+
+
+    // A throwing native play/pause command must never leave stale Play intent,
+    // a possibly audible decoder, or a held focus request after failure.
+    val commandEngines = mutableListOf<FakeEngine>()
+    val commandSource = media("transport-failure.mp4")
+    val commandHistory = RecentStore().also {
+        it.update(commandSource, 53_000L, 300_000L)
+    }
+    val commandSession = PlayerSession(ctx, listOf(commandSource), 0,
+        commandHistory) { selected ->
+        FakeEngine(selected, mutableListOf()).also(commandEngines::add)
+    }
+    val originalCommand = commandEngines.last()
+    commandSession.pause()
+    originalCommand.failNextPlay = true
+    commandSession.play()
+    verify("throwing Play disarms intent, releases decoder and exposes safe error",
+        !commandSession.wantsPlay && commandSession.engine == null &&
+        originalCommand.released == 1 &&
+        commandSession.snapshot.error == "Playback control failed" &&
+        commandSession.message.orEmpty().contains("Retry") &&
+        !commandSession.message.orEmpty().contains("secret"))
+    commandSession.retry()
+    verify("explicit Retry after failed Play restores saved location",
+        commandEngines.size == 2 && commandEngines.last().loadStartMs == 53_000L &&
+        commandSession.wantsPlay)
+    commandEngines.last().current = commandEngines.last().current.copy(
+        position = 67_000L, loading = false, duration = 300_000L)
+    commandSession.refresh()
+    val secondCommand = commandEngines.last()
+    secondCommand.failNextPause = true
+    commandSession.pause()
+    verify("throwing Pause tears down decoder rather than leaving audio active",
+        !commandSession.wantsPlay && commandSession.engine == null &&
+        secondCommand.released == 1 && commandSession.snapshot.error != null)
+    verify("transport failure preserves last trustworthy Continue Watching timeline",
+        commandHistory.read().single().positionMs == 67_000L)
+    commandSession.close()
+
+    val focusPlayEngines = mutableListOf<FakeEngine>()
+    val focusPlaySession = PlayerSession(ctx, listOf(media("focus-gain.mp4")), 0,
+        RecentStore()) { selected ->
+        FakeEngine(selected, mutableListOf()).also(focusPlayEngines::add)
+    }
+    val focusPlayNative = focusPlayEngines.single()
+    val focusPlayCoordinator = checkNotNull(AudioFocusCoordinator.latest)
+    focusPlayCoordinator.simulateTransientLoss()
+    focusPlayNative.failNextPlay = true
+    focusPlayCoordinator.simulateFocusGain()
+    verify("focus gain play exception safely tears down decoder",
+        !focusPlaySession.wantsPlay && focusPlaySession.engine == null &&
+        focusPlayNative.released == 1 && focusPlaySession.snapshot.error != null)
+    focusPlaySession.close()
+
+    val recoveryEngines = mutableListOf<FakeEngine>()
+    var recoveryClock = 0L
+    val recoverySession = PlayerSession(ctx, listOf(media("rebuffer-recovery.mp4")), 0,
+        RecentStore(), clockMs = { recoveryClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(recoveryEngines::add)
+    }
+    val recovering = recoveryEngines.single()
+    recovering.current = recovering.current.copy(position = 80_000L,
+        duration = 300_000L, canSeek = true, loading = false, isPlaying = true)
+    recoverySession.refresh()
+    recovering.current = recovering.current.copy(
+        position = 80_000L, loading = true, isPlaying = false)
+    recoveryClock = 1_000L
+    recoverySession.refresh()
+    recoveryClock = 16_000L
+    recoverySession.refresh()
+    verify("stalled rebuffer presents explicit recovery after threshold",
+        recoverySession.playbackStatus.phase == PlaybackPhase.REBUFFERING &&
+        recoverySession.playbackStatus.phaseDurationMs >= 15_000L)
+    verify("explicit recovery recreates once and preserves last playback position",
+        recoverySession.recoverStalledPlayback() &&
+        recoveryEngines.size == 2 &&
+        recoveryEngines.last().loadStartMs == 80_000L &&
+        recovering.released == 1)
+    verify("recovery cannot be repeated when new player is no longer buffering",
+        !recoverySession.recoverStalledPlayback() && recoveryEngines.size == 2)
+    recoverySession.pause()
+    verify("paused user cannot trigger stalled recovery",
+        !recoverySession.recoverStalledPlayback() && recoveryEngines.size == 2)
+    recoverySession.close()
 
     println("PASS: $counter session ownership/behavior checks")
 }

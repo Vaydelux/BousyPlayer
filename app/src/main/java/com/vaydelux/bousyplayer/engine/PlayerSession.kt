@@ -96,18 +96,21 @@ class PlayerSession(
         onTransientLoss = {
             if (wantsPlay && !closed) {
                 suspendedByFocus = true
-                runCatching { engine?.pause() }
-                refresh()
+                if (runCatching { engine?.pause() }.isFailure) failTransportCommand()
+                else refresh()
             }
         },
         onPermanentLoss = {
             suspendedByFocus = false
             if (!closed) {
                 wantsPlay = false
-                runCatching { engine?.pause() }
-                refresh()
-                saveProgress()
-                message = "Playback paused: audio focus lost"
+                if (runCatching { engine?.pause() }.isFailure) {
+                    failTransportCommand()
+                } else {
+                    refresh()
+                    saveProgress()
+                    message = "Playback paused: audio focus lost"
+                }
             }
         },
         onGain = {
@@ -115,12 +118,34 @@ class PlayerSession(
                 restartUnconfirmedNativeStartupWindow()
                 phaseTracker.resumeAfterSuspension(clockMs())
                 suspendedByFocus = false
-                runCatching { engine?.play() }
-                refresh()
+                if (runCatching { engine?.play() }.isFailure) failTransportCommand()
+                else refresh()
             }
         },
         onNoisy = { if (!closed) pause() }
     )
+
+    /**
+     * A failed native transport call leaves the renderer state unknown. Never
+     * keep a potentially audible decoder alive with a false Paused/Playing UI.
+     * Release its ownership before requesting a new decoder on explicit Retry.
+     * Retain the last trusted timeline, not native exception text or media URI.
+     */
+    private fun failTransportCommand() {
+        if (closed) return
+        saveProgress()
+        val old = engine
+        engine = null
+        wantsPlay = false
+        suspendedByFocus = false
+        audioFocus.abandon()
+        runCatching { old?.release() }
+        snapshot = snapshot.copy(isPlaying = false, loading = false, canSeek = false,
+            ended = false, tracks = emptyList(), error = "Playback control failed")
+        message = "Playback controls became unavailable. Press Retry to reopen the decoder."
+        phaseTracker.reset()
+        playbackStatus = PlaybackPhaseReport(PlaybackPhase.ERROR)
+    }
 
     private fun acknowledgePosition(reported: PlaybackSnapshot): Boolean {
         if (pendingSeekToStart) {
@@ -319,7 +344,10 @@ class PlayerSession(
         // snapshot fault must not trigger automatic MPV/Matroska handoff.
         if (!snapshotReadable || snapshotFaultFatal) {
             if (snapshotFaultFatal) {
-                if (wantsPlay) runCatching { engine?.pause() }
+                if (wantsPlay && runCatching { engine?.pause() }.isFailure) {
+                    failTransportCommand()
+                    return
+                }
                 wantsPlay = false
                 suspendedByFocus = false
                 audioFocus.abandon()
@@ -390,7 +418,10 @@ class PlayerSession(
             // Native decoders may report a fatal error while their audio renderer
             // is still active. Pause once before relinquishing Android audio focus;
             // never trust UI state alone to silence a failed native engine.
-            if (wantsPlay) runCatching { engine?.pause() }
+            if (wantsPlay && runCatching { engine?.pause() }.isFailure) {
+                failTransportCommand()
+                return
+            }
             wantsPlay = false
             suspendedByFocus = false
             audioFocus.abandon()
@@ -424,10 +455,13 @@ class PlayerSession(
         }
         if (!audioFocus.acquire()) {
             // A denied focus request must never leave an already-running decoder audible.
-            runCatching { engine?.pause() }
-            message = "Audio focus unavailable: cannot start sound"
-            wantsPlay = false
-            refresh()
+            if (runCatching { engine?.pause() }.isFailure) {
+                failTransportCommand()
+            } else {
+                message = "Audio focus unavailable: cannot start sound"
+                wantsPlay = false
+                refresh()
+            }
             return
         }
         // A user may resume after hours of Pause. Give a still-unconfirmed native
@@ -439,14 +473,20 @@ class PlayerSession(
         suspendedByFocus = false
         wantsPlay = true
         message = null
-        runCatching { engine?.play() }
+        if (runCatching { engine?.play() }.isFailure) {
+            failTransportCommand()
+            return
+        }
         refresh()
     }
     fun pause() {
         if (closed) return
         wantsPlay = false
         suspendedByFocus = false
-        runCatching { engine?.pause() }
+        if (runCatching { engine?.pause() }.isFailure) {
+            failTransportCommand()
+            return
+        }
         audioFocus.abandon()
         refresh()
         saveProgress()
@@ -456,7 +496,10 @@ class PlayerSession(
         val target = SourcePolicy.clampSeek(ms, snapshot.duration)
         val targetEngine = engine ?: return
         val accepted = runCatching { targetEngine.seek(target) }.isSuccess
-        if (!accepted) return
+        if (!accepted) {
+            message = "Seek request failed. Try again or choose another engine."
+            return
+        }
         // Explicit seek supersedes any pending automatic resume. Wait for the
         // engine's reported position before persisting the new timeline.
         lastAttemptedPositionMs = target
@@ -591,6 +634,18 @@ class PlayerSession(
     fun next() = goTo(index + 1)
     fun previous() = goTo(index - 1)
     fun openPlaylistIndex(value: Int) = goTo(value)
+    /**
+     * The button is a hint, not a permanently granted permission to restart:
+     * revalidate state on click in case the user paused or buffering ended.
+     */
+    fun recoverStalledPlayback(): Boolean {
+        if (closed || suspendedByFocus || !PlaybackRecoveryPolicy.offerManualRecovery(
+                playbackStatus.phase, playbackStatus.phaseDurationMs,
+                wantsPlay, snapshot.error != null)) return false
+        retry()
+        return engine != null && wantsPlay && snapshot.error == null
+    }
+
     fun retry() {
         if (closed) return
         if (!retryGate.permit(clockMs())) {

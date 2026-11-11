@@ -145,3 +145,14 @@ assert 'accessibilityLabel = "Back to library"' in source, 'Back icon needs read
 assert 'accessibilityLabel = "Close player menu"' in source, 'Close icon needs readable label'
 assert 'accessibilityLabel = if (session.wantsPlay) "Pause playback" else "Play video"' in source, 'Compact transport must expose stateful semantics'
 print('PASS: compact screen labels and extra-narrow header accessibility gates')
+
+sessionSource = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+assert 'private fun failTransportCommand()' in sessionSource, 'Command failures must have centralized fail-safe'
+assert 'fun recoverStalledPlayback(): Boolean' in sessionSource, 'Manual rebuffer recovery must revalidate state on activation'
+assert 'session.recoverStalledPlayback()' in source, 'UI must not bypass rebuffer predicate via unconditional Retry'
+assert 'Playback controls became unavailable. Press Retry' in sessionSource, 'Native command errors need safe user feedback'
+assert 'Seek request failed. Try again' in sessionSource, 'Failed seek cannot be silently ignored'
+assert 'throwing Play disarms intent' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Play failure injection test missing'
+assert 'throwing Pause tears down decoder' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Pause failure injection test missing'
+assert 'focus gain play exception safely tears down decoder' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Focus gain transport regression absent'
+print('PASS: transport failure fail-safe and explicit stalled-recovery state validation')
