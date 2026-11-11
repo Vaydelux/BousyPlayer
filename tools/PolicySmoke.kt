@@ -146,6 +146,15 @@ fun main() {
         false, false, false, true, 100_001))
     checkNamed("focus suspension hides seek warning until new active period",
         focusPause.phase == PlaybackPhase.PAUSED && focusResume.phase == PlaybackPhase.SEEKING)
+    checkNamed("snapshot fault tolerance starts below fatal threshold",
+        !DecoderSnapshotFailurePolicy.isFatal(DecoderSnapshotFailurePolicy.nextConsecutive(0)))
+    checkNamed("snapshot third consecutive fault is fatal",
+        DecoderSnapshotFailurePolicy.isFatal(
+            DecoderSnapshotFailurePolicy.nextConsecutive(
+                DecoderSnapshotFailurePolicy.nextConsecutive(
+                    DecoderSnapshotFailurePolicy.nextConsecutive(0)))))
+    checkNamed("snapshot failures saturate instead of overflowing",
+        DecoderSnapshotFailurePolicy.nextConsecutive(Int.MAX_VALUE) == 3)
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))

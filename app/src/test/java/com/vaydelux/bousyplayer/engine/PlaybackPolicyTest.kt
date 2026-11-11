@@ -212,6 +212,14 @@ class PlaybackPolicyTest {
         assertEquals(3_600_000L, late.phaseDurationMs)
         assertFalse(late.toString().contains("content://"))
     }
+    @Test fun snapshotFailuresRequireThreeConsecutiveExceptions() {
+        assertEquals(1, DecoderSnapshotFailurePolicy.nextConsecutive(0))
+        assertEquals(2, DecoderSnapshotFailurePolicy.nextConsecutive(1))
+        assertFalse(DecoderSnapshotFailurePolicy.isFatal(2))
+        assertTrue(DecoderSnapshotFailurePolicy.isFatal(
+            DecoderSnapshotFailurePolicy.nextConsecutive(2)))
+        assertEquals(3, DecoderSnapshotFailurePolicy.nextConsecutive(Int.MAX_VALUE))
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))

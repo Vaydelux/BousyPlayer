@@ -389,3 +389,15 @@ class PlaybackPhaseTracker(private val seekWarningMs: Long = 12_000L) {
         )
     }
 }
+
+/**
+ * A single transient player.snapshot() exception is not proof the decoder
+ * failed. Allow at most two missed polls and fail on the third consecutive
+ * exception. Never use this to auto-restart, switch engines or autoplay.
+ */
+object DecoderSnapshotFailurePolicy {
+    const val FAILURE_LIMIT = 3
+    fun nextConsecutive(current: Int): Int =
+        (current.coerceIn(0, FAILURE_LIMIT) + 1).coerceAtMost(FAILURE_LIMIT)
+    fun isFatal(consecutive: Int): Boolean = consecutive >= FAILURE_LIMIT
+}

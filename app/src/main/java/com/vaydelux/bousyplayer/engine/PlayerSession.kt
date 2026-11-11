@@ -45,6 +45,10 @@ class PlayerSession(
     var playbackStatus by mutableStateOf(PlaybackPhaseReport(PlaybackPhase.STARTING))
         private set
     private val retryGate = DecoderRetryGate()
+    private var consecutiveSnapshotFailures = 0
+    private var totalSnapshotFailures = 0
+    val playbackSnapshotFaults: Int get() = totalSnapshotFailures
+    val consecutivePlaybackSnapshotFaults: Int get() = consecutiveSnapshotFailures
     private var backgrounded = false
     val playbackHealth: PlaybackHealth get() = healthRecorder.summary
     var kind by mutableStateOf(EngineKind.MEDIA3)
@@ -187,6 +191,7 @@ class PlayerSession(
         snapshot = PlaybackSnapshot()
         phaseTracker.reset()
         playbackStatus = PlaybackPhaseReport(PlaybackPhase.STARTING)
+        consecutiveSnapshotFailures = 0
         engineEverReady = false
         nativeStartupAtMs = clockMs()
         val last = recents.read().firstOrNull { it.source.uri == source.uri }
@@ -221,6 +226,10 @@ class PlayerSession(
                 // Unavailable caption styling must not prevent video playback.
                 runCatching { next.applySubtitleAppearance(subtitleAppearance) }
                 next.load(source.uri, resumeAt, shouldStart, externalSubtitle)
+                // Ownership transfers only when the first native snapshot is
+                // readable. On failure next.release() below owns teardown,
+                // leaving the session with no reference to a dead decoder.
+                val first = next.snapshot()
                 engine = next
                 kind = candidate
                 if (selected == EngineKind.MEDIA3 && candidate == EngineKind.VLC) {
@@ -231,7 +240,7 @@ class PlayerSession(
                     candidate != selected -> "${selected.label} unavailable; using ${candidate.label}"
                     else -> null
                 }
-                snapshot = next.snapshot()
+                snapshot = first
                 return
             } catch (failure: Throwable) {
                 lastError = failure
@@ -239,6 +248,7 @@ class PlayerSession(
             }
         }
         audioFocus.abandon()
+        wantsPlay = false
         // Never include the media title, path, native exception, or signed URL
         // in a user-facing failure message.
         message = "Could not open this media with ${selected.label}. Try another engine or Retry."
@@ -249,8 +259,18 @@ class PlayerSession(
     fun refresh() {
         if (closed) return
         engine?.let { active ->
-            snapshot = try { active.snapshot() } catch (e: Exception) {
-                snapshot.copy(loading = false, error = "Playback state unavailable")
+            snapshot = try {
+                active.snapshot().also { consecutiveSnapshotFailures = 0 }
+            } catch (_: Exception) {
+                consecutiveSnapshotFailures =
+                    DecoderSnapshotFailurePolicy.nextConsecutive(consecutiveSnapshotFailures)
+                totalSnapshotFailures = (totalSnapshotFailures + 1).coerceAtMost(999)
+                val fatal = DecoderSnapshotFailurePolicy.isFatal(consecutiveSnapshotFailures)
+                // The stale isPlaying/track values cannot authorize controls,
+                // but an intermittent read failure must not immediately
+                // interrupt the playing decoder or allocate a replacement.
+                snapshot.copy(isPlaying = false, canSeek = false, tracks = emptyList(),
+                    loading = !fatal, error = if (fatal) "Playback state unavailable" else null)
             }
         }
         healthRecorder.sample(
@@ -595,6 +615,7 @@ class PlayerSession(
         pendingSeekToStart = false
         val old = engine
         engine = null
+        consecutiveSnapshotFailures = 0
         runCatching { old?.release() }
         audioFocus.abandon()
         wantsPlay = false

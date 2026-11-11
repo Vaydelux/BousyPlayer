@@ -24,10 +24,17 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
         playingRequested = shouldPlay
         current = current.copy(position = startMs, isPlaying = shouldPlay)
     }
-    override fun snapshot() = current
+    override fun snapshot(): PlaybackSnapshot {
+        if (snapshotFailuresRemaining > 0) {
+            snapshotFailuresRemaining--
+            throw IllegalStateException("simulated native snapshot with secret/credential")
+        }
+        return current
+    }
     override fun play() { playingRequested = true; current = current.copy(isPlaying = !stalledOnPlay) }
     override fun pause() { pauseCalls++; playingRequested = false; current = current.copy(isPlaying = false) }
     var delaySeek = false
+    var snapshotFailuresRemaining = 0
     var seekCalls = 0
     var failNextSeek = false
     override fun seek(positionMs: Long) {
@@ -782,6 +789,63 @@ fun main() {
     verify("acknowledged backward seek saves new location",
         backwardsStore.read().first().positionMs == 18_000L)
     backwards.close()
+
+    val firstSnapshotTrace = mutableListOf<String>()
+    val firstSnapshotCreated = mutableListOf<FakeEngine>()
+    val failedInitialSnapshot = PlayerSession(ctx, listOf(media("first-snapshot.mp4")), 0,
+        RecentStore()) { candidate ->
+        FakeEngine(candidate, firstSnapshotTrace).also {
+            it.snapshotFailuresRemaining = 1
+            firstSnapshotCreated += it
+        }
+    }
+    verify("failed initial snapshot must not leave a released decoder owned by session",
+        failedInitialSnapshot.engine == null && firstSnapshotCreated.single().released == 1 &&
+            failedInitialSnapshot.snapshot.error != null && !failedInitialSnapshot.wantsPlay)
+    failedInitialSnapshot.close()
+    verify("closing failed startup does not double-release a dead decoder",
+        firstSnapshotCreated.single().released == 1)
+
+    val transientSnapshotEngines = mutableListOf<FakeEngine>()
+    val transientSnapshot = PlayerSession(ctx, listOf(media("snapshot-recovery.mp4")), 0,
+        RecentStore()) { selected ->
+        FakeEngine(selected, mutableListOf()).also(transientSnapshotEngines::add)
+    }
+    val transientNative = transientSnapshotEngines.last()
+    transientNative.current = transientNative.current.copy(
+        position = 45_000L, loading = false, isPlaying = true, duration = 300_000L)
+    transientSnapshot.refresh()
+    transientNative.snapshotFailuresRemaining = 2
+    transientSnapshot.refresh()
+    verify("first transient snapshot fault does not fail or recreate decoder",
+        transientSnapshot.snapshot.error == null && transientSnapshot.engine === transientNative &&
+            transientSnapshot.wantsPlay && !transientSnapshot.snapshot.canSeek)
+    transientSnapshot.refresh()
+    verify("second transient snapshot fault retains decoder ownership and Play intent",
+        transientSnapshot.snapshot.error == null && transientSnapshotEngines.size == 1 &&
+            transientSnapshot.wantsPlay && transientSnapshot.playbackSnapshotFaults == 2)
+    transientSnapshot.refresh()
+    verify("successful snapshot clears consecutive fault streak without engine replacement",
+        transientSnapshot.consecutivePlaybackSnapshotFaults == 0 &&
+            transientSnapshot.snapshot.error == null && transientSnapshotEngines.size == 1)
+    transientNative.snapshotFailuresRemaining = 3
+    repeat(2) { transientSnapshot.refresh() }
+    verify("two new snapshot failures after recovery still remain nonfatal",
+        transientSnapshot.snapshot.error == null && transientSnapshot.wantsPlay)
+    transientSnapshot.refresh()
+    verify("third consecutive snapshot exception enters controlled fatal state",
+        transientSnapshot.snapshot.error == "Playback state unavailable" &&
+            !transientSnapshot.wantsPlay && transientSnapshot.engine === transientNative &&
+            transientSnapshotEngines.size == 1)
+    verify("runtime diagnostics retain only bounded numeric failure counts",
+        transientSnapshot.playbackSnapshotFaults == 5 &&
+            transientSnapshot.consecutivePlaybackSnapshotFaults == 3)
+    transientSnapshot.retry()
+    verify("explicit Retry alone recreates decoder after persistent snapshot fault",
+        transientSnapshotEngines.size == 2 &&
+            transientSnapshotEngines.first().released == 1 &&
+            transientSnapshot.consecutivePlaybackSnapshotFaults == 0)
+    transientSnapshot.close()
 
     println("PASS: $counter session ownership/behavior checks")
 }
