@@ -1,6 +1,6 @@
-# Bousy Player v0.19 — Qualification gates
+# Bousy Player v0.20 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.19 hardens repeated surface attach/detach, partial native attach recovery and bounded manual resource-delta observations; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.20 adds bounded decoder-retry handling, background/UI-hidden native resource release, and compiled Android lifecycle instrumentation; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -11,7 +11,9 @@ Scope: standalone BousyPlayer private repository. v0.19 hardens repeated surface
 | v0.16 permission-bound saved state and diagnostic/track gates | PASS: [GitHub Actions #16](https://github.com/Vaydelux/BousyPlayer/actions/runs/42993922342) |
 | v0.17 subtitle/health/native regression gates | PASS: [GitHub Actions #17](https://github.com/Vaydelux/BousyPlayer/actions/runs/42998083471), 75 session regressions and both APKs |
 | v0.18 libmpv/LibVLC descriptor and seek lifecycle gates | PASS: [GitHub Actions #19](https://github.com/Vaydelux/BousyPlayer/actions/runs/43001018061) |
-| v0.19 repeated surface attach/detach + failure injection | PENDING v0.19 GitHub Actions workflow |
+| v0.19 repeated surface attach/detach + failure injection | PASS: [GitHub Actions #20](https://github.com/Vaydelux/BousyPlayer/actions/runs/43014678358) |
+| v0.20 bounded decoder retries + background memory release | PENDING v0.20 GitHub Actions workflow |
+| v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
 | v0.18 Android on-demand memory/FD probe | SOURCE IMPLEMENTED; hardware sampling NOT RUN |
 | v0.14 SHA-256 checksum manifest | PASS: [v0.14 prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.14-743f04bc) |
