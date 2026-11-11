@@ -1,8 +1,8 @@
-# Bousy Player v0.28 — Android TV / phone / tablet
+# Bousy Player v0.29 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.27 passed [main release workflow #2](https://github.com/Vaydelux/BousyPlayer/actions/runs/43070243504) and published both ABI APKs, Maven SBOM and OSV results. v0.28 adds packaged ELF-native identity, per-file hashes, GNU Build IDs where present and high-risk hardening gates; its own CI is pending. Exact native VLC/mpv/FFmpeg versions and CVE status cannot be inferred from an ELF hash alone.
+> **Qualification status:** v0.28 passed [GitHub Actions main release workflow #3](https://github.com/Vaydelux/BousyPlayer/actions/runs/43076247076), including both APKs, security reports, Maven OSV and native ELF checks. v0.29 introduces four shared persistent themes, adaptive phone/TV recovery controls and user-initiated recovery for prolonged buffering. Its own CI and physical-device playback qualification remain pending.
 
 ## v0.13 core hardening
 
@@ -128,6 +128,14 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Native CycloneDX file SBOM:** Publish the packaged ELF inventory and file-level SBOM alongside the resolved Maven SBOM, OSV scan and both debug APKs; cover all reports with SHA256SUMS.
 - **Limitations:** The file manifest proves binary identity, not upstream native versions, vulnerability freedom, LGPL obligations or trusted build provenance. GNU RELRO/Build ID absences are visible for review. Device playback, production signing and complete third-party notices remain open.
 
+## v0.29 — Adaptive premium appearance and controlled recovery
+
+- **Four persistent premium themes:** Ocean, Obsidian, Amethyst and Ember use shared semantic colors for every home/player/menu surface. Theme preference is saved locally without storing media identifiers or sending telemetry. The user may change it from Home or Player Options; invalid saved values use Ocean.
+- **Adaptive errors and TV panel:** Playback errors display vertically stacked, large focusable Retry/engine-choice buttons on narrow screens and a compact row on larger displays. The options/queue panel never exceeds the available viewport width; top and transport padding adapts on smaller devices.
+- **Manual prolonged-buffer recovery:** A 15-second continuous REBUFFERING phase (not initial startup or seeking) offers a dedicated "Recover stalled playback" action. It never triggers an automatic decoder restart, cannot undo user Pause, and uses the existing rate-limited explicit Retry path to preserve playback position.
+- **Qualification:** Kotlin JUnit and JVM smoke tests cover the pure recovery policy; static UI source guards verify theme propagation, local preference persistence and adaptive layout. Real device visual accessibility, D-pad focus, memory and codec tests remain required.
+
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -178,7 +186,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.28 qualification results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.29 qualification results.
 
 ## Scope / known limitations
 
