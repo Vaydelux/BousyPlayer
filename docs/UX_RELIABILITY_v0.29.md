@@ -19,3 +19,7 @@ Deliver cohesive premium appearance throughout BousyPlayer, protect narrow phone
 - Real-device and emulator screenshots at 320/360/480dp portrait, tablet landscape and 720p/1080p TV; large text and accessibility contrast review; physical D-pad navigation.
 - MKV/TS/HLS playback, subtitles, user Pause, seeking and audio-focus tests on ARM32 and ARM64 devices.
 - Full native C/C++ CVE mapping and redistribution licenses, production signing, build provenance and crash/ANR service-level requirements. Debug builds cannot be called production-certified.
+
+## Contrast verification and accessibility scope
+
+The offline palette gate checks seven semantic color pairings per theme against WCAG AA's 4.5:1 small-text contrast reference. Tests also verify invalid preference values fall back to Ocean and all named identifiers round-trip. Icon-only Back, Close and compact Play/Pause controls have explicit screen-reader descriptions. These are source/test-level guards; TalkBack navigation, actual overlay alpha blending, dynamic font scaling and screenshots are **not** yet device-qualified.

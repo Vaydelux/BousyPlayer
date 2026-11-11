@@ -136,6 +136,8 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Qualification:** Kotlin JUnit and JVM smoke tests cover the pure recovery policy; static UI source guards verify theme propagation, local preference persistence and adaptive layout. Real device visual accessibility, D-pad focus, memory and codec tests remain required.
 
 
+- **Contrast-qualified semantic colors:** CI checks 28 static text/label/accent color combinations across all four palettes against a 4.5:1 contrast threshold; persisted theme identifier round-tripping has Android JVM unit coverage. Actual video overlays, TalkBack and enlarged-font layout still need on-device testing.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
