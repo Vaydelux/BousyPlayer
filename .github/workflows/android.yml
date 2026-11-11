@@ -15,7 +15,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # GitHub-hosted Ubuntu runners already provide the Android SDK.
+      # setup-android@v3 currently invokes obsolete 'sdkmanager tools' and fails.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
@@ -32,7 +33,11 @@ jobs:
           print(f'PASS: {len(files)} Android XML files parsed')
           PYXML
       - name: Install SDK platform
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+          sdkmanager --version
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - name: Compile, unit test, lint, assemble and inspect APK
         run: bash tools/build-and-qualify.sh
       - uses: actions/upload-artifact@v4
