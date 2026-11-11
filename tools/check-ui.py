@@ -186,3 +186,12 @@ assert 'libmpv silently accepted an unseekable user request' in smokeSource, 'Mi
 assert 'LibVLC silently accepted an unseekable user request' in smokeSource, 'Missing LibVLC seek rejection regression'
 assert 'native rejection cannot create a fake pending seek' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Missing session seek rejection case'
 print('PASS: all decoders reject unseekable seeks and preserve truthfulness of session progress')
+
+sourceV33 = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/PlayerScreen.kt').read_text()
+sessionV33 = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+assert 'val issued = session.seekBy(10_000)' in sourceV33 and 'val issued = session.seekBy(-10_000)' in sourceV33, 'HUD must react to actual seek command result'
+assert '"Seek unavailable"' in sourceV33 and 'requested ·' in sourceV33, 'D-pad feedback must not misreport rejected seek'
+assert 'fun seekTo(ms: Long): Boolean' in sessionV33 and 'fun seekBy(deltaMs: Long): Boolean' in sessionV33, 'Seek commands must expose acceptance'
+assert 'if (closed || backgrounded || !snapshot.canSeek' in sessionV33, 'Seek rejected in background'
+assert 'if (closed || backgrounded) return' in sessionV33, 'Background play/retry guard missing'
+print('PASS: D-pad seek feedback tracks issued command and background transport is gated')

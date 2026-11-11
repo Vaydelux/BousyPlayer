@@ -1121,9 +1121,9 @@ fun main() {
     )
     rejectedSeek.refresh()
     rejectedSeekNative.failNextSeek = true
-    rejectedSeek.seekTo(112_000L)
+    val rejectedAtCommand = rejectedSeek.seekTo(112_000L)
     verify("native rejection cannot create a fake pending seek",
-        rejectedSeek.seekDisplayPosition() == 57_000L &&
+        !rejectedAtCommand && rejectedSeek.seekDisplayPosition() == 57_000L &&
         rejectedSeek.message == "Seek request failed. Try again or choose another engine." &&
         rejectedSeekNative.seekCalls == 1 &&
         rejectedSeek.playbackStatus.phase != PlaybackPhase.SEEKING)
@@ -1131,9 +1131,22 @@ fun main() {
         rejectedSeekStore.read().single().positionMs == 57_000L)
     rejectedSeekNative.current = rejectedSeekNative.current.copy(canSeek = false)
     rejectedSeek.refresh()
-    rejectedSeek.seekTo(112_000L)
-    verify("known non-seekable decoder avoids native seek command",
-        rejectedSeekNative.seekCalls == 1)
+    verify("known non-seekable decoder returns false and avoids native seek",
+        !rejectedSeek.seekTo(112_000L) && rejectedSeekNative.seekCalls == 1)
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(canSeek = true)
+    rejectedSeek.refresh()
+    verify("accepted seek returns issued but never claims immediate completion",
+        rejectedSeek.seekBy(10_000L) && rejectedSeekNative.seekCalls == 2 &&
+        rejectedSeek.seekDisplayPosition() == 67_000L)
+    rejectedSeek.onBackground()
+    val beforeBackgroundSeek = rejectedSeekNative.seekCalls
+    verify("background remote seek never reaches native decoder",
+        !rejectedSeek.seekBy(10_000L) && rejectedSeekNative.seekCalls == beforeBackgroundSeek)
+    val beforeBackgroundDecoder = rejectedSeekEngines.size
+    rejectedSeek.retry()
+    rejectedSeek.play()
+    verify("background Play and Retry never allocate a fresh decoder",
+        rejectedSeekEngines.size == beforeBackgroundDecoder && !rejectedSeek.wantsPlay)
     rejectedSeek.close()
 
     println("PASS: $counter session ownership/behavior checks")

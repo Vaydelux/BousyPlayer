@@ -135,13 +135,13 @@ fun PlayerScreen(
                     activate(); true
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> if (menu == PlayerMenu.NONE && !hudVisible) {
-                    session.seekBy(-10_000)
-                    seekHint = if (screen.canSeek) "−10s · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Not seekable"
+                    val issued = session.seekBy(-10_000)
+                    seekHint = if (issued) "−10s requested · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Seek unavailable"
                     true
                 } else false
                 KeyEvent.KEYCODE_DPAD_RIGHT -> if (menu == PlayerMenu.NONE && !hudVisible) {
-                    session.seekBy(10_000)
-                    seekHint = if (screen.canSeek) "+10s · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Not seekable"
+                    val issued = session.seekBy(10_000)
+                    seekHint = if (issued) "+10s requested · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Seek unavailable"
                     true
                 } else false
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,

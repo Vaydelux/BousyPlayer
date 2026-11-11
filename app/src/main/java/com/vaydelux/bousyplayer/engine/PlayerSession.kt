@@ -441,7 +441,9 @@ class PlayerSession(
 
     fun playPause() { if (wantsPlay) pause() else play() }
     fun play() {
-        if (closed) return
+        // A stale remote/media-key callback must never resurrect the decoder
+        // after ON_STOP. Foreground reentry does not imply Play intent.
+        if (closed || backgrounded) return
         if (engine == null || snapshot.error != null) {
             // Decoder recreation is handled by Retry, including its bounded
             // rate gate; don't arm Play when the retry limit blocks a restart.
@@ -495,14 +497,14 @@ class PlayerSession(
         refresh()
         saveProgress()
     }
-    fun seekTo(ms: Long) {
-        if (!snapshot.canSeek || snapshot.duration <= 0L) return
+    fun seekTo(ms: Long): Boolean {
+        if (closed || backgrounded || !snapshot.canSeek || snapshot.duration <= 0L) return false
         val target = SourcePolicy.clampSeek(ms, snapshot.duration)
-        val targetEngine = engine ?: return
+        val targetEngine = engine ?: return false
         val accepted = runCatching { targetEngine.seek(target) }.isSuccess
         if (!accepted) {
             message = "Seek request failed. Try again or choose another engine."
-            return
+            return false
         }
         // Explicit seek supersedes any pending automatic resume. Wait for the
         // engine's reported position before persisting the new timeline.
@@ -512,12 +514,15 @@ class PlayerSession(
         pendingSeekToStart = target == 0L
         phaseTracker.explicitSeekRequested(clockMs())
         refresh()
+        // This is command acceptance, not proof of rendered frame/seek completion.
+        return true
     }
-    fun seekBy(deltaMs: Long) {
+    fun seekBy(deltaMs: Long): Boolean {
+        if (closed || backgrounded) return false
         // During async Resume, 0:00 is a provisional decoder timestamp. D-pad
         // seeking should be relative to the pending resume target, not reset it.
         val from = latestPosition()
-        seekTo(if (deltaMs > 0L && from > Long.MAX_VALUE - deltaMs) Long.MAX_VALUE
+        return seekTo(if (deltaMs > 0L && from > Long.MAX_VALUE - deltaMs) Long.MAX_VALUE
             else if (deltaMs < 0L && from < Long.MIN_VALUE - deltaMs) Long.MIN_VALUE
             else from + deltaMs)
     }
@@ -651,7 +656,7 @@ class PlayerSession(
     }
 
     fun retry() {
-        if (closed) return
+        if (closed || backgrounded) return
         if (!retryGate.permit(clockMs())) {
             wantsPlay = false
             suspendedByFocus = false

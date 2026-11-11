@@ -21,3 +21,9 @@ Native fake engines exercise mpv and VLC loss of seekability at command time and
 ## Required acceptance before publication
 
 The branch and PR workflows must independently pass all Kotlin session and native-adapter tests, Android debug compilation/unit tests/lint, Maven OSV scan, dual-ABI ELF and native SBOM gates, Android APK signer check and release integrity negative tests. After merge, only the main workflow may publish ARM32/ARM64 debug prerelease APKs and its associated validated hash/signing evidence.
+
+## D-pad feedback and background safety
+
+The previously hidden-HUD left/right overlay used `screen.canSeek` from the last status poll and could display `+10s` even after a failed native command. `PlayerSession.seekTo/seekBy` now return a Boolean representing **command accepted**, not completed playback. Hidden HUD shows `+10s requested` or `−10s requested` only after an issued command, and `Seek unavailable` if the decoder rejects it. Fake decoder tests cover rejection, acceptance, unknown seekability, and background suppression.
+
+`play()`, `retry()` and seek commands now refuse stale user callbacks while the Activity is backgrounded. This prevents a backgrounded screen from recreating a decoder or issuing a new seek after `onBackground()`. Foreground Play remains an explicit user action.
