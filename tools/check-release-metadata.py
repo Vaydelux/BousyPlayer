@@ -25,6 +25,10 @@ assert f'Bousy Player v{version.rsplit(".", 1)[0]}' in readme, 'README release t
 # The release step expands the ABI filename dynamically inside its shell loop.
 assert 'for abi in armeabi-v7a arm64-v8a' in workflow, 'CI must publish both ABI variants'
 assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-$abi-debug.apk' in workflow, 'CI per-ABI APK filename template missing'
+qualification = (root / 'tools/build-and-qualify.sh').read_text()
+assert ':session-smoke:run' in qualification, 'Session regression gate missing from CI build'
+assert ':native-smoke:run' in qualification, 'Native adapter regression gate missing from CI build'
+assert 'SHA256SUMS.txt' in workflow, 'Release checksums missing from CI'
 assert 'isUniversalApk = false' in gradle, 'Universal ABI APK must be disabled'
 assert 'include("armeabi-v7a", "arm64-v8a")' in gradle, 'Expected ARM ABI split configuration missing'
 assert f'debug-v{version.rsplit(".", 1)[0]}-' in workflow and 'gh release create' in workflow, 'CI prerelease publication missing'
