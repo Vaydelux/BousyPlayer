@@ -60,7 +60,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         keepScreenOn = true
         holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
-                if (released || !holder.surface.isValid) return
+                if (released || surfaceAttached || !holder.surface.isValid) return
                 runCatching {
                     native.attachSurface(holder.surface)
                     surfaceAttached = true
@@ -352,5 +352,6 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         runCatching { descriptor?.close() }
         descriptor = null
         surfaceAttached = false
+        view.keepScreenOn = false
     }
 }

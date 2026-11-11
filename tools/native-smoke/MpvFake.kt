@@ -32,6 +32,8 @@ class MPVLib {
     var destroyed = false
     var destroyCount = 0
     var surfaceReady = false
+    var attachCount = 0
+    var detachCount = 0
     private val bools = mutableMapOf<String,Boolean>()
     private var observer: EventObserver? = null
     fun setSeekable(value: Boolean) { bools["seekable"] = value }
@@ -56,7 +58,7 @@ class MPVLib {
     fun setPropertyDouble(name: String, value: Double) { doubleProperties[name] = value }
     fun setPropertyInt(name: String, value: Int) {}
     fun setPropertyString(name: String, value: String) { stringProperties[name] = value }
-    fun attachSurface(surface: Surface) { surfaceReady = true }
-    fun detachSurface() { surfaceReady = false }
+    fun attachSurface(surface: Surface) { surfaceReady = true; attachCount++ }
+    fun detachSurface() { surfaceReady = false; detachCount++ }
     fun destroy() { destroyed = true; destroyCount++ }
 }

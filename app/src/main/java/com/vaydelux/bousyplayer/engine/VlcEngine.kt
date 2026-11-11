@@ -41,18 +41,26 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         keepScreenOn = true
         holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
-                if (released || !holder.surface.isValid) return
+                if (released || attached || !holder.surface.isValid) return
                 runCatching {
                     native.vlcVout.setVideoSurface(holder.surface, null)
                     native.vlcVout.attachViews()
                     attached = true
-                    native.vlcVout.setWindowSize(width.coerceAtLeast(1), height.coerceAtLeast(1))
+                    surfaceWidth = width.coerceAtLeast(1)
+                    surfaceHeight = height.coerceAtLeast(1)
+                    native.vlcVout.setWindowSize(surfaceWidth, surfaceHeight)
                     applyAspect()
                     // The Activity creates the SurfaceView after PlayerSession.load().
                     // Don't start decoding before VLC has a video output surface.
                     if (PlaybackPolicy.canStartNative(requestedPlay, mediaConfigured, attached) &&
                         !native.isPlaying) native.play()
-                }.onFailure { errorMessage = "LibVLC cannot attach video output" }
+                }.onFailure {
+                    // Partial native attachment must not be treated as a valid
+                    // surface; retry is possible on a subsequent creation.
+                    runCatching { native.vlcVout.detachViews() }
+                    attached = false
+                    errorMessage = "LibVLC cannot attach video output"
+                }
             }
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
                 surfaceWidth = width
@@ -295,7 +303,12 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
     }
     override fun disableSubtitles() { if (!released) { native.setSpuTrack(-1); lastTrackPollMs = -1L } }
     override fun detachView() {
-        if (attached) { runCatching { native.vlcVout.detachViews() }; attached = false }
+        if (attached) {
+            runCatching { native.vlcVout.detachViews() }
+            attached = false
+        }
+        surfaceWidth = 0
+        surfaceHeight = 0
     }
     override fun release() {
         if (released) return
@@ -312,6 +325,7 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         activeDescriptor = null
         resumePosition = 0L
         lastTrackPollMs = -1L
+        view.keepScreenOn = false
         runCatching { vlc.release() }
     }
 }

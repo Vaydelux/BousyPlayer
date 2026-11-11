@@ -27,10 +27,17 @@ class MediaPlayer(vlc: LibVLC) {
     data class TrackDescription(val id: Int, val name: String?)
     class Vout {
         var attached = false
+        var attachCount = 0
+        var detachCount = 0
+        var windowWidth = 0
+        var windowHeight = 0
         fun setVideoSurface(surface: Surface, another: Any?) {}
-        fun attachViews() { attached = true }
-        fun setWindowSize(width: Int, height: Int) {}
-        fun detachViews() { attached = false }
+        fun attachViews() { attached = true; attachCount++ }
+        fun setWindowSize(width: Int, height: Int) {
+            windowWidth = width
+            windowHeight = height
+        }
+        fun detachViews() { attached = false; detachCount++ }
     }
     val vlcVout = Vout()
     var media: Media? = null
