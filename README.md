@@ -1,8 +1,8 @@
-# Bousy Player v0.16 — Android TV / phone / tablet
+# Bousy Player v0.17 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.15 passed [GitHub Actions #14](https://github.com/Vaydelux/BousyPlayer/actions/runs/42989807568), including 66 session regression checks, Kotlin, lint and split-ABI APKs. v0.16 adds permission-bound paused restore, safe diagnostic classification and track validation. Its new CI run must pass before these changes are build-qualified; hardware remains unverified.
+> **Qualification status:** v0.16 passed [GitHub Actions #16](https://github.com/Vaydelux/BousyPlayer/actions/runs/42993922342), including 71 session tests, Android compilation, lint and ABI-specific APK validation. v0.17 introduces accessible caption controls and local health metrics and requires a new CI run before it is build-qualified. Real hardware behavior remains untested.
 
 ## v0.13 core hardening
 
@@ -33,6 +33,13 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - The playback error screen now displays a deterministic support code and a fixed actionable explanation rather than raw decoder exception text, URLs or private file paths.
 - Audio/subtitle track requests reject stale track IDs and provide failure/request feedback. External subtitle URIs must come from the document picker; selecting a subtitle requests playback through Media3 without claiming immediate track success.
 - Retains v0.15 lazy TV queue, bounded MPV seek retry and ARM32/ARM64 split APKs. **Android lifecycle and physical-device behavior remain untested.**
+
+## v0.17 — Subtitle accessibility and bounded session health
+
+- **TV-readable subtitles:** Size presets (Small, Standard, Large) and white, yellow, and black-on-light high-contrast palettes are available in the Audio & Subtitles drawer. Media3 applies CaptionStyleCompat; libmpv applies native subtitle font/color/border/background properties. The session carries the preferences through engine switches without overriding Pause. Live subtitle styling is **not supported by LibVLC** in this version, and the UI states that clearly.
+- **Privacy-safe session health:** The Options menu displays coarse sampled buffering percentage, longest buffering interval (capped at 120 seconds), error events, and engine handoff count. All metrics remain in memory, are bounded, and contain **no titles, URLs, filenames, credentials, or remote telemetry**; counters reset with a new player session.
+- **Memory safeguards:** Media3, mpv, and LibVLC limit exposed track counts and label lengths to protect low-memory Android TV devices from unusually large metadata. Cached track lists are released where appropriate.
+- **Regression gates:** Android-free recorder policies, Gradle-run actual libmpv adapter tests, session ownership tests, JUnit policy tests, Android lint, and two ABI-specific APK checks. Hardware subtitle rendering and actual long-session memory use remain unverified.
 
 ## Current source capabilities
 
@@ -84,7 +91,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.16 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.17 results.
 
 ## Scope / known limitations
 
@@ -93,7 +100,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.16 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.17 progress report.
 
 ## Repository and downloads
 
