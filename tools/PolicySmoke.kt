@@ -6,6 +6,12 @@ fun checkNamed(name: String, condition: Boolean) {
     println("PASS: $name")
 }
 fun main() {
+    checkNamed("manual recovery offered after 15s rebuffer",
+        PlaybackRecoveryPolicy.offerManualRecovery(PlaybackPhase.REBUFFERING, 15_000L, true, false))
+    checkNamed("manual recovery not offered while paused",
+        !PlaybackRecoveryPolicy.offerManualRecovery(PlaybackPhase.REBUFFERING, 100_000L, false, false))
+    checkNamed("manual recovery cannot disguise errors",
+        !PlaybackRecoveryPolicy.offerManualRecovery(PlaybackPhase.ERROR, 100_000L, true, true))
     checkNamed("TS selects mpv", EngineKind.preferredFor("stream.ts") == EngineKind.MPV)
     checkNamed("M2TS selects mpv", EngineKind.preferredFor("video.M2TS") == EngineKind.MPV)
     checkNamed("MP4 selects Media3", EngineKind.preferredFor("video.mp4") == EngineKind.MEDIA3)

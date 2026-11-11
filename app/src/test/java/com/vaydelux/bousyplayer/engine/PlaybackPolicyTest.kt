@@ -12,6 +12,20 @@ class PlaybackPolicyTest {
         assertEquals(EngineKind.MEDIA3, EngineKind.preferredFor("movie.mp4"))
         assertEquals(EngineKind.MEDIA3, EngineKind.preferredFor("movie.m3u8"))
     }
+    @Test fun stalledRebufferOnlyOffersUserInitiatedRecovery() {
+        assertFalse(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.REBUFFERING, 14_999L, true, false))
+        assertTrue(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.REBUFFERING, 15_000L, true, false))
+        assertFalse(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.REBUFFERING, 120_000L, false, false))
+        assertFalse(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.REBUFFERING, 120_000L, true, true))
+        assertFalse(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.STARTING, 120_000L, true, false))
+        assertFalse(PlaybackRecoveryPolicy.offerManualRecovery(
+            PlaybackPhase.SEEK_DELAYED, 120_000L, true, false))
+    }
     @Test fun manualPauseIsNeverOverriddenByBufferRecovery() {
         assertFalse(PlaybackPolicy.shouldResume(false, false, false))
         assertFalse(PlaybackPolicy.shouldResume(true, true, false))

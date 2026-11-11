@@ -101,6 +101,20 @@ object PlaybackPolicy {
         playRequested && !everReady && !alreadyAttempted && hasError
 }
 
+/**
+ * A prolonged rebuffer offers a *manual* decoder restart. Never auto-restart a
+ * movie after a user Pause, focus interruption, or real decoder failure.
+ */
+object PlaybackRecoveryPolicy {
+    const val MANUAL_REBUFFER_MS = 15_000L
+
+    fun offerManualRecovery(
+        phase: PlaybackPhase, phaseDurationMs: Long,
+        playRequested: Boolean, hasError: Boolean
+    ): Boolean = playRequested && !hasError && phase == PlaybackPhase.REBUFFERING &&
+        phaseDurationMs >= MANUAL_REBUFFER_MS
+}
+
 /** Pure rules for persisted local playback positions (never store network credentials). */
 object PlaybackResumePolicy {
     /** Duration, buffering and Play notifications alone do not confirm a saved seek.

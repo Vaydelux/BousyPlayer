@@ -49,10 +49,13 @@ fun HomeScreen(
     onPickFiles: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onRecent: (RecentStore.Entry) -> Unit,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    selectedTheme: CinemaTheme,
+    onThemeSelected: (CinemaTheme) -> Unit
 ) {
     var isUrlDialogOpen by remember { mutableStateOf(false) }
     var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
+    var isThemeDialogOpen by remember { mutableStateOf(false) }
     var url by remember { mutableStateOf("") }
     val valid = SourcePolicy.isValidNetworkUrl(url)
     BoxWithConstraints(Modifier.fillMaxSize().background(CinemaColor.background)) {
@@ -61,7 +64,14 @@ fun HomeScreen(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (compact) 18.dp else 36.dp, vertical = 24.dp)
         ) {
-            Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge, color = CinemaColor.accent)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
+                    color = CinemaColor.accent)
+                TextButton(onClick = { isThemeDialogOpen = true }) {
+                    Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+                }
+            }
             Spacer(Modifier.height(16.dp))
             Text("Every frame deserves a great player.", style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold, color = CinemaColor.text)
@@ -129,6 +139,31 @@ fun HomeScreen(
             Text("MP4 • MKV • TS • HLS / DASH • Audio & subtitles • 3 playback engines",
                 style = MaterialTheme.typography.labelSmall, color = CinemaColor.muted)
         }
+    }
+    if (isThemeDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isThemeDialogOpen = false },
+            title = { Text("Choose appearance") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CinemaTheme.entries.forEach { option ->
+                        ActionButton(
+                            "${if (selectedTheme == option) "✓  " else ""}${option.label}",
+                            onClick = {
+                                onThemeSelected(option)
+                                isThemeDialogOpen = false
+                            },
+                            highlighted = selectedTheme == option,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { isThemeDialogOpen = false }) { Text("Close") }
+            }
+        )
     }
     if (isClearHistoryDialogOpen) {
         AlertDialog(

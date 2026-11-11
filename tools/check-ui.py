@@ -122,3 +122,18 @@ assert 'Clear Continue Watching?' in home and 'onClearHistory()' in home, 'clear
 assert 'recentsStore.clear()' in activity, 'home must erase saved local playback history'
 assert 'HistoryPolicy.safeTitle(name)' in activity, 'provider filenames require sanitization'
 print('PASS: explicit local-history clearing and bounded provider titles')
+
+theme = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/PlayerTheme.kt').read_text()
+assert 'staticCompositionLocalOf' in theme and 'CompositionLocalProvider' in theme, 'Themed colors must share one composition'
+for item in ('OCEAN', 'OBSIDIAN', 'AMETHYST', 'EMBER'):
+    assert item in theme, f'Missing theme: {item}'
+assert 'fromStored(raw: String?)' in theme, 'Invalid saved theme must use a safe default'
+assert 'appearance.edit().putString("theme", next.name).apply()' in activity, 'Theme choice must persist'
+assert 'onThemeSelected: (CinemaTheme) -> Unit' in home and 'isThemeDialogOpen' in home, 'Home theme selector missing'
+assert 'onThemeSelected(choice)' in source, 'Player settings must use shared appearance state'
+assert 'BoxWithConstraints(Modifier.fillMaxSize()' in source, 'Playback controls must adapt to available width'
+assert 'val compactOverlay = maxWidth < 600.dp' in source, 'Narrow-screen error layout missing'
+assert 'width(maxWidth.coerceAtMost(390.dp))' in source, 'Drawer width must not exceed viewport'
+assert 'PlaybackRecoveryPolicy.offerManualRecovery(' in source, 'Long rebuffer manual action missing'
+assert 'ActionButton("Recover stalled playback"' in source, 'User-initiated stalled playback recovery missing'
+print('PASS: persistent premium themes, adaptive compact errors and user-directed rebuffer recovery')
