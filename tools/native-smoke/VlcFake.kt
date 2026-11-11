@@ -78,7 +78,7 @@ class MediaPlayer(vlc: LibVLC) {
             return field
         }
     private var _time = 0L
-    val time get(): Long {
+    val time: Long get() {
         if (failNextPositionRead) {
             failNextPositionRead = false
             throw IllegalStateException("synthetic LibVLC timeline read failed private://media")
