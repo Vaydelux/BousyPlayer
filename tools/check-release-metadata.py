@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Catch mismatched source version numbers and CI APK artifact names before publishing.
+"""Catch mismatched source versions and debug APK release names before publishing.
 
 This is a static source gate, not Android compilation or release certification.
 """
@@ -22,6 +22,6 @@ code = int(required(r'^\s*versionCode\s*=\s*(\d+)', gradle, 'versionCode'))
 minor = int(version.split('.')[1])
 assert code == minor, f'versionCode {code} does not match versionName {version}'
 assert f'Bousy Player v{version.rsplit(".", 1)[0]}' in readme, 'README release title mismatch'
-assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-debug-APK' in workflow, 'CI APK artifact name mismatch'
-assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-build-diagnostics' in workflow, 'CI diagnostics artifact name mismatch'
+assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-debug.apk' in workflow, 'CI release APK filename mismatch'
+assert f'debug-v{version.rsplit(".", 1)[0]}-' in workflow and 'gh release create' in workflow, 'CI prerelease publication missing'
 print(f'PASS: source version, README, and CI artifact names match ({version}, code {code})')

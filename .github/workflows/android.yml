@@ -4,7 +4,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   debug:
     runs-on: ubuntu-24.04
@@ -51,21 +51,29 @@ jobs:
           echo "Maven Central Kotlin standard library POM reachable"
       - name: Compile, unit test, lint, assemble and inspect APK
         run: bash tools/build-and-qualify.sh
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: BousyPlayer-v0.11-debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-      - name: Save compiler/lint reports for diagnosis
+      # Store passing debug APKs as private-repository prerelease assets.
+      # Actions artifact storage is currently quota-limited on this account.
+      - name: Publish validated debug APK as prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="debug-v0.11-${GITHUB_SHA:0:8}"
+          gh release create "$tag" \
+            "app/build/outputs/apk/debug/app-debug.apk#BousyPlayer-v0.11-debug.apk" \
+            --target "$GITHUB_SHA" \
+            --title "Bousy Player v0.11 CI Debug (${GITHUB_SHA:0:8})" \
+            --notes "Automatically built and statically verified debug APK. Not yet hardware-tested; not a production release." \
+            --prerelease
+
+      # Print diagnostics to the job log instead of uploading quota-limited artifacts.
+      - name: Print diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: BousyPlayer-v0.11-build-diagnostics
-          path: |
-            app/build/reports/
-            app/build/test-results/
-            app/build/outputs/logs/
-          if-no-files-found: ignore
-          retention-days: 7
+        run: |
+          report="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
+          if [ -f "$report" ]; then
+            tail -n 240 "$report"
+          else
+            echo "No Android lint text report generated."
+          fi
