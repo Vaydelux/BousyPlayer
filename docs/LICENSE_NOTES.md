@@ -12,3 +12,7 @@ This document is an engineering checklist, not a legal clearance.
 ## v0.27 Maven inventory vs native-license boundary
 
 The generated CycloneDX debug SBOM enumerates resolved Maven dependencies (including the AAR wrappers for libmpv and LibVLC). That does **not** enumerate transitive C/C++ FFmpeg/mpv/VLC shared libraries inside those archives, their codec patent obligations, LGPL notices or their exact linked versions. The OSV Maven query is not a native security scan. Before distributing a commercial production APK, collect native provenance, create a complete third-party notice bundle and obtain a redistribution/legal review.
+
+## v0.28 Native file-level security evidence
+
+The release contains a native-file BOM built from the exact ELF objects embedded in both APKs, with per-file hashes and available GNU Build IDs. These values support binary traceability but do not identify exact upstream FFmpeg/mpv/VLC source versions, guarantee their vulnerability status, or satisfy LGPL source/relinking and attribution obligations. Separate native vendor/provenance/license review and production signing are still required.

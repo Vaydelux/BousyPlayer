@@ -1,8 +1,8 @@
-# Bousy Player v0.27 — Android TV / phone / tablet
+# Bousy Player v0.28 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.26 passed [main release workflow #1](https://github.com/Vaydelux/BousyPlayer/actions/runs/43066908229) and published ARM32/ARM64 debug APKs. v0.27 introduces a resolved Maven CycloneDX inventory and fail-closed OSV advisory scan; its own CI has not yet passed. This does not audit nested native libraries, or certify physical playback and D-pad controls.
+> **Qualification status:** v0.27 passed [main release workflow #2](https://github.com/Vaydelux/BousyPlayer/actions/runs/43070243504) and published both ABI APKs, Maven SBOM and OSV results. v0.28 adds packaged ELF-native identity, per-file hashes, GNU Build IDs where present and high-risk hardening gates; its own CI is pending. Exact native VLC/mpv/FFmpeg versions and CVE status cannot be inferred from an ELF hash alone.
 
 ## v0.13 core hardening
 
@@ -121,6 +121,13 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Auditable debug assets:** Each successful prerelease includes the two ABI APKs, a Maven dependency SBOM, an OSV report and SHA-256 hashes for all four files.
 - **Important scope limit:** The Maven inventory includes wrapper AAR artifacts but does not resolve which FFmpeg, mpv, VLC or other native C/C++ versions were bundled within them. Native CVE and redistribution reviews remain mandatory.
 
+## v0.28 — Native library evidence and ELF security
+
+- **Actual shipped binaries:** Inspect every `.so` in both final APKs and record each native file's SHA-256, size, ELF architecture, GNU Build ID when present, DT_NEEDED shared-library names, GNU RELRO and stack flags.
+- **High-risk ELF gate:** Block incorrect ABI, inconsistent ARM32/ARM64 library sets, duplicate ZIP members, executable GNU_STACK, RWX mappings and text relocations; include negative synthetic ELF32/ELF64 regression fixtures.
+- **Native CycloneDX file SBOM:** Publish the packaged ELF inventory and file-level SBOM alongside the resolved Maven SBOM, OSV scan and both debug APKs; cover all reports with SHA256SUMS.
+- **Limitations:** The file manifest proves binary identity, not upstream native versions, vulnerability freedom, LGPL obligations or trusted build provenance. GNU RELRO/Build ID absences are visible for review. Device playback, production signing and complete third-party notices remain open.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -171,7 +178,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.27 qualification results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.28 qualification results.
 
 ## Scope / known limitations
 
