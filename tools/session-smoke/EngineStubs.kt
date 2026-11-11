@@ -2,11 +2,12 @@ package com.vaydelux.bousyplayer.engine
 import android.content.Context
 import android.net.Uri
 
+data class MediaTrack(val id: String, val label: String, val kind: TrackKind, val selected: Boolean)
 data class PlaybackSnapshot(
     val position: Long = 0L, val duration: Long = 0L, val buffered: Long = 0L,
     val isPlaying: Boolean = false, val canSeek: Boolean = false,
     val loading: Boolean = true, val ended: Boolean = false,
-    val error: String? = null
+    val error: String? = null, val tracks: List<MediaTrack> = emptyList()
 )
 interface PlaybackEngine {
     fun load(uri: Uri, startMs: Long, shouldPlay: Boolean, subtitle: Uri?)
