@@ -44,6 +44,14 @@ kotlin {
 }
 
 dependencies {
+    // Transitive Guava 33.3.1-android was identified by the new OSV gate.
+    // Enforce the patched Android variant for CVE-2026-102554
+    // (GHSA-xxph-c9ww-hj94); do not silently suppress the advisory.
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-android") {
+            because("Fix uncontrolled memory allocation on deserialization (GHSA-xxph-c9ww-hj94)")
+        }
+    }
     implementation(platform("androidx.compose:compose-bom:2025.06.01"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.ui:ui")
