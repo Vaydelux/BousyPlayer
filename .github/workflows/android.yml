@@ -60,17 +60,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="debug-v0.20-${GITHUB_SHA:0:8}"
+          tag="debug-v0.21-${GITHUB_SHA:0:8}"
           mkdir -p dist
           for abi in armeabi-v7a arm64-v8a; do
             cp "app/build/outputs/apk/debug/app-$abi-debug.apk" \
-               "dist/BousyPlayer-v0.20-$abi-debug.apk"
+               "dist/BousyPlayer-v0.21-$abi-debug.apk"
           done
           # The checksum manifest lets testers verify downloaded APK integrity.
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
           gh release create "$tag" dist/*.apk dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
-            --title "Bousy Player v0.20 ABI Debug (${GITHUB_SHA:0:8})" \
+            --title "Bousy Player v0.21 ABI Debug (${GITHUB_SHA:0:8})" \
             --notes "ARM32 and ARM64 APKs. Gradle compilation, session/native-adapter regression suites, Android unit tests and lint, ZIP and ELF checks, SHA256 manifest passed. Native playback and remote controls are not yet hardware-verified." \
             --prerelease
 

@@ -1,8 +1,8 @@
-# Bousy Player v0.20 — Android TV / phone / tablet
+# Bousy Player v0.21 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.19 passed [GitHub Actions #20](https://github.com/Vaydelux/BousyPlayer/actions/runs/43014678358), including native surface recreation/attachment stress, Gradle smoke tests, Android lint and ARM32/ARM64 debug APK validation. v0.20 adds a bounded decoder-retry gate, background-only native memory release and compiled Activity instrumentation source; its new CI build must pass before v0.20 can be considered build-qualified. Real hardware remains unverified.
+> **Qualification status:** v0.20 passed [GitHub Actions #22](https://github.com/Vaydelux/BousyPlayer/actions/runs/43016568018), with 84 session ownership/recovery checks, native-adapter simulations, Android unit tests and lint, compiled lifecycle instrumentation and two verified ABI debug APKs. v0.21 adds a bounded silent-stall fallback for automatic local MKV playback. A new passing CI build is required before treating v0.21 as build-qualified; physical playback remains unverified.
 
 ## v0.13 core hardening
 
@@ -65,6 +65,14 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Android lifecycle instrumentation source:** An `androidTest` ActivityScenario test covers recreation and memory-trim callbacks without active media. CI compiles its test APK but does **not** run it without a device or emulator.
 - **Qualification boundary:** Existing 75+ session/adapter regressions, native surface and FD checks, Android tests, lint, ARM32/ARM64 ELF/APK validation and SHA-256 checksums remain mandatory. No real Android TV endurance or codec tests have been performed.
 
+## v0.21 — Silent MKV startup recovery
+
+- **Bounded Media3 → LibVLC compatibility fallback:** An automatically chosen Media3 decoder that has not established playback for a local MKV after **25 continuous active seconds** can switch to LibVLC once, even if Media3 never reports an error. Its saved Continue Watching offset is transferred, and old decoder resources are released before the new decoder loads.
+- **Pause and focus protection:** Time spent in explicit Pause or suspended audio focus does not consume the MKV startup budget. The timer restarts on explicit Play or audio-focus gain. This feature never silently changes a manually chosen engine, an HTTPS stream, or video already confirmed ready.
+- **Correct readiness:** A buffered Media3 snapshot can initially display its requested starting position before the first frame. The timer will not treat that provisional timestamp alone as confirmed playback, preventing perpetual buffering from disabling the fallback.
+- **Regression coverage:** Pure policy/JUnit tests and Gradle-run actual PlayerSession fake-decoder tests cover 24,999/25,000ms boundaries, saved-offset preservation, one-time release/hand-off ordering, resumed Play, focus loss/gain, and provisional timelines.
+- **Scope:** Debug APKs still require Android compilation, session and native adapter smoke tests, lint, per-ABI APK/ELF validation and checksums. This is **not** physical MKV/codec certification.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -115,7 +123,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.20 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.21 results.
 
 ## Scope / known limitations
 
@@ -124,7 +132,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.20 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.21 progress report.
 
 ## Repository and downloads
 

@@ -1,6 +1,6 @@
-# Bousy Player v0.20 — Qualification gates
+# Bousy Player v0.21 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.20 adds bounded decoder-retry handling, background/UI-hidden native resource release, and compiled Android lifecycle instrumentation; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.21 adds bounded automatic Media3 MKV startup recovery, avoiding indefinite silent buffering while respecting Pause and focus; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -12,7 +12,8 @@ Scope: standalone BousyPlayer private repository. v0.20 adds bounded decoder-ret
 | v0.17 subtitle/health/native regression gates | PASS: [GitHub Actions #17](https://github.com/Vaydelux/BousyPlayer/actions/runs/42998083471), 75 session regressions and both APKs |
 | v0.18 libmpv/LibVLC descriptor and seek lifecycle gates | PASS: [GitHub Actions #19](https://github.com/Vaydelux/BousyPlayer/actions/runs/43001018061) |
 | v0.19 repeated surface attach/detach + failure injection | PASS: [GitHub Actions #20](https://github.com/Vaydelux/BousyPlayer/actions/runs/43014678358) |
-| v0.20 bounded decoder retries + background memory release | PENDING v0.20 GitHub Actions workflow |
+| v0.20 bounded decoder retries + background memory release | PASS: [GitHub Actions #22](https://github.com/Vaydelux/BousyPlayer/actions/runs/43016568018), 84 session checks and two verified APKs |
+| v0.21 Media3 local MKV silent-stall fallback / position retention | PENDING v0.21 GitHub Actions workflow |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
 | v0.18 Android on-demand memory/FD probe | SOURCE IMPLEMENTED; hardware sampling NOT RUN |
