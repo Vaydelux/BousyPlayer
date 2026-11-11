@@ -65,11 +65,12 @@ fun HomeScreen(
     val valid = SourcePolicy.isValidNetworkUrl(url)
     BoxWithConstraints(Modifier.fillMaxSize().background(CinemaColor.background)) {
         val compact = maxWidth < 600.dp
+        val extraCompact = maxWidth < 380.dp
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (compact) 18.dp else 36.dp, vertical = 24.dp)
         ) {
-            if (maxWidth < 380.dp) {
+            if (extraCompact) {
                 Column(horizontalAlignment = Alignment.Start) {
                     Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
                         color = CinemaColor.accent)
