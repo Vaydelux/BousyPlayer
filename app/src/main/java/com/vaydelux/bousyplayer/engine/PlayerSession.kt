@@ -41,6 +41,8 @@ class PlayerSession(
     var subtitleAppearance by mutableStateOf(SubtitleAppearance())
         private set
     private val healthRecorder = PlaybackHealthRecorder()
+    private val retryGate = DecoderRetryGate()
+    private var backgrounded = false
     val playbackHealth: PlaybackHealth get() = healthRecorder.summary
     var kind by mutableStateOf(EngineKind.MEDIA3)
         private set
@@ -157,6 +159,7 @@ class PlayerSession(
         if (switchingItem) {
             nativeStartupFallbackAttempted = false
             compatibilityFallbackAttempted = false
+            retryGate.reset()
         }
         captureCurrentProgress()
         engine?.let { old ->
@@ -218,7 +221,9 @@ class PlayerSession(
             }
         }
         audioFocus.abandon()
-        message = "Could not open ${source.title} with ${selected.label} (${lastError?.javaClass?.simpleName ?: "Unknown"})"
+        // Never include the media title, path, native exception, or signed URL
+        // in a user-facing failure message.
+        message = "Could not open this media with ${selected.label}. Try another engine or Retry."
         snapshot = PlaybackSnapshot(loading = false, error = message)
 
     }
@@ -307,10 +312,8 @@ class PlayerSession(
     fun play() {
         if (closed) return
         if (engine == null || snapshot.error != null) {
-            // Failed native players generally cannot restart with play() alone.
-            // User-requested Play on an error explicitly replaces the engine.
-            wantsPlay = true
-            suspendedByFocus = false
+            // Decoder recreation is handled by Retry, including its bounded
+            // rate gate; don't arm Play when the retry limit blocks a restart.
             retry()
             return
         }
@@ -439,6 +442,7 @@ class PlayerSession(
         val position = latestPosition()
         kind = nextKind
         manualEngine = true
+        retryGate.reset()
         if (kind != EngineKind.MEDIA3) externalSubtitle = null
         open(index, position)
     }
@@ -456,6 +460,13 @@ class PlayerSession(
     fun openPlaylistIndex(value: Int) = goTo(value)
     fun retry() {
         if (closed) return
+        if (!retryGate.permit(clockMs())) {
+            wantsPlay = false
+            suspendedByFocus = false
+            audioFocus.abandon()
+            message = "Too many decoder restarts. Retry later or choose another playback engine."
+            return
+        }
         // Retry is an explicit user intent to resume; fatal errors disarm wantsPlay.
         wantsPlay = true
         suspendedByFocus = false
@@ -480,9 +491,34 @@ class PlayerSession(
         lastSavedPosition = savedPosition
     }
     fun onBackground() {
+        if (closed) return
+        backgrounded = true
         // Save the decoder's authoritative timeline before a background interruption.
         latestPosition()
         pause()
+    }
+    fun onForeground() {
+        backgrounded = false
+        // No implicit autoplay after Activity/OS lifecycle transitions.
+    }
+    fun onMemoryPressure(level: Int) {
+        if (closed || engine == null || !MemoryTrimPolicy.shouldReleaseBackgroundDecoder(level)) return
+        // UI_HIDDEN may arrive before Lifecycle ON_STOP; treat it as background.
+        if (!backgrounded) onBackground()
+        val position = if (snapshot.ended) 0L else latestPosition()
+        saveProgress()
+        lastAttemptedPositionMs = position
+        resumePositionAcknowledged = true
+        pendingSeekToStart = false
+        val old = engine
+        engine = null
+        runCatching { old?.release() }
+        audioFocus.abandon()
+        wantsPlay = false
+        suspendedByFocus = false
+        snapshot = snapshot.copy(position = position, isPlaying = false, canSeek = false,
+            loading = false, error = null, tracks = emptyList())
+        message = "Playback resources freed in the background. Press Play to continue."
     }
     fun close() {
         if (closed) return

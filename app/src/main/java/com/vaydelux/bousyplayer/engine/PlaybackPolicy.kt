@@ -245,3 +245,37 @@ class ResourceTrendRecorder {
         )
     }
 }
+
+/**
+ * Avoid uncontrolled native decoder churn when Retry is tapped repeatedly.
+ * Only manual, same-source Retry attempts are limited; switching media or
+ * explicitly selecting another playback engine resets the retry window.
+ */
+class DecoderRetryGate(
+    private val maxRestarts: Int = 3,
+    private val windowMs: Long = 30_000L
+) {
+    private var windowStart: Long? = null
+    private var restartCount = 0
+    fun permit(nowMs: Long): Boolean {
+        val start = windowStart
+        if (start == null || nowMs < start || nowMs - start >= windowMs) {
+            windowStart = nowMs
+            restartCount = 0
+        }
+        if (restartCount >= maxRestarts) return false
+        restartCount++
+        return true
+    }
+    fun reset() {
+        windowStart = null
+        restartCount = 0
+    }
+}
+
+/** Android TRIM_MEMORY_UI_HIDDEN and background levels (20+) permit release.
+ *  Running-low levels (5/10/15) must not interrupt foreground playback.
+ */
+object MemoryTrimPolicy {
+    fun shouldReleaseBackgroundDecoder(level: Int): Boolean = level >= 20
+}

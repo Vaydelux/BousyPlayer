@@ -135,6 +135,24 @@ class PlaybackPolicyTest {
         assertEquals(null, notAvailable.record(ResourceObservation(3L, 4L, 12)).fdDelta)
         assertFalse(increase.toString().contains("content://"))
     }
+    @Test fun retryLimitIsBoundedButResetsWithElapsedTimeOrEngineChange() {
+        val gate = DecoderRetryGate()
+        repeat(3) { assertTrue(gate.permit(200L)) }
+        assertFalse(gate.permit(500L))
+        assertFalse(gate.permit(30_199L))
+        assertTrue(gate.permit(30_200L))
+        gate.reset()
+        assertTrue(gate.permit(30_201L))
+    }
+
+    @Test fun onlyBackgroundTrimLevelsReleaseNativeDecoders() {
+        for (level in listOf(5, 10, 15)) {
+            assertFalse(MemoryTrimPolicy.shouldReleaseBackgroundDecoder(level))
+        }
+        for (level in listOf(20, 40, 60, 80)) {
+            assertTrue(MemoryTrimPolicy.shouldReleaseBackgroundDecoder(level))
+        }
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))

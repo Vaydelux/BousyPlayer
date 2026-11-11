@@ -536,5 +536,69 @@ fun main() {
         healthSession.playbackHealth.longestBufferMs == 6_000L)
     healthSession.close()
 
+    var retryClock = 0L
+    val repeatedEngines = mutableListOf<FakeEngine>()
+    val repeated = PlayerSession(ctx, listOf(media("repeat.mp4")), 0, RecentStore(),
+        clockMs = { retryClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(repeatedEngines::add)
+    }
+    repeat(3) {
+        repeatedEngines.last().current = repeatedEngines.last().current.copy(
+            error = "repeated decoder failure", isPlaying = false)
+        repeated.refresh()
+        repeated.retry()
+    }
+    verify("bounded manual Retry creates at most three replacement decoders in 30 seconds",
+        repeatedEngines.size == 4)
+    repeatedEngines.last().current = repeatedEngines.last().current.copy(
+        error = "repeated decoder failure", isPlaying = false)
+    repeated.refresh()
+    repeated.play()
+    verify("decoder retry circuit prevents further native allocations",
+        repeatedEngines.size == 4 && !repeated.wantsPlay &&
+        repeated.message?.contains("Too many decoder restarts") == true)
+    retryClock = 30_000L
+    repeated.retry()
+    verify("retry after cooldown opens exactly one decoder",
+        repeatedEngines.size == 5 && repeated.wantsPlay)
+    repeated.close()
+
+    val lowMemEngines = mutableListOf<FakeEngine>()
+    val lowMemStore = RecentStore().also {
+        it.update(media("lowmem.mp4"), 64_000L, 300_000L)
+    }
+    val lowMem = PlayerSession(ctx, listOf(media("lowmem.mp4")), 0,
+        lowMemStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(lowMemEngines::add)
+    }
+    lowMemEngines.last().current = lowMemEngines.last().current.copy(position = 72_000L)
+    lowMem.onMemoryPressure(15)
+    verify("foreground critical memory warning leaves decoder under user control",
+        lowMem.engine != null && lowMemEngines.last().released == 0)
+    lowMem.onMemoryPressure(20)
+    verify("UI-hidden trim frees decoder exactly once and disarms playback",
+        lowMem.engine == null && !lowMem.wantsPlay && lowMemEngines.first().released == 1)
+    lowMem.onMemoryPressure(80)
+    verify("repeated OS memory trims cannot double-release native decoder",
+        lowMemEngines.first().released == 1)
+    lowMem.onForeground()
+    verify("return from memory pressure never starts playback automatically",
+        lowMem.engine == null && !lowMem.wantsPlay)
+    lowMem.play()
+    verify("explicit Play restores resume position with new decoder",
+        lowMemEngines.size == 2 && lowMemEngines.last().loadStartMs == 72_000L &&
+            lowMem.wantsPlay)
+    lowMem.close()
+
+    val secretEngines = mutableListOf<FakeEngine>()
+    val failedTitle = PlayerSession(ctx, listOf(media("private-recording.mp4")), 0,
+        RecentStore()) { selected ->
+        throw IllegalStateException("failed native source with secret token")
+    }
+    verify("failed decoder startup never embeds media titles or native exceptions in UI",
+        failedTitle.message?.contains("private-recording") != true &&
+        failedTitle.message?.contains("secret token") != true)
+    failedTitle.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

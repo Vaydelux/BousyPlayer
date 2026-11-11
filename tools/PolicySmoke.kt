@@ -89,6 +89,18 @@ fun main() {
     unknownFd.record(ResourceObservation(5, 10, null))
     checkNamed("resource trend handles missing FD visibility",
         unknownFd.record(ResourceObservation(6, 11, 20)).fdDelta == null)
+    val retryGate = DecoderRetryGate()
+    checkNamed("manual decoder retries allow three bounded restarts",
+        (0 until 3).all { retryGate.permit(1_000L) } && !retryGate.permit(1_000L))
+    checkNamed("decoder retry window reopens after 30 seconds",
+        retryGate.permit(31_001L))
+    retryGate.reset()
+    checkNamed("manual engine change resets decoder retry gate",
+        retryGate.permit(31_002L))
+    checkNamed("foreground low-memory warning does not release decoder",
+        !MemoryTrimPolicy.shouldReleaseBackgroundDecoder(15))
+    checkNamed("UI hidden memory trim permits background release",
+        MemoryTrimPolicy.shouldReleaseBackgroundDecoder(20))
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))
