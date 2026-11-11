@@ -684,5 +684,34 @@ fun main() {
         provisionalEngines.last().loadStartMs == 88_000L)
     provisionalSession.close()
 
+    // An Android audio-focus loss suspends the Media3 MKV startup timeout.
+    var mkvFocusClock = 0L
+    AudioFocusCoordinator.reset()
+    val mkvFocusEngines = mutableListOf<FakeEngine>()
+    val mkvFocus = PlayerSession(ctx, listOf(media("focus-stalled.mkv")), 0,
+        RecentStore(), clockMs = { mkvFocusClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(mkvFocusEngines::add)
+    }
+    mkvFocusEngines.last().current = PlaybackSnapshot(loading = true)
+    val mkvFocusCoordinator = checkNotNull(AudioFocusCoordinator.latest)
+    mkvFocusClock = 5_000L
+    mkvFocusCoordinator.simulateTransientLoss()
+    verify("Media3 MKV focus loss pauses without losing Play intent",
+        mkvFocus.wantsPlay && !mkvFocusEngines.last().playingRequested)
+    mkvFocusClock = 180_000L
+    mkvFocusEngines.last().stalledOnPlay = true
+    mkvFocusCoordinator.simulateFocusGain()
+    verify("Media3 MKV focus gain resets active startup deadline",
+        mkvFocus.kind == EngineKind.MEDIA3 && mkvFocusEngines.size == 1)
+    mkvFocusClock = 204_999L
+    mkvFocus.refresh()
+    verify("Media3 MKV focus-restored startup waits its full grace period",
+        mkvFocusEngines.size == 1)
+    mkvFocusClock = 205_000L
+    mkvFocus.refresh()
+    verify("focus-restored silent MKV startup eventually switches once",
+        mkvFocus.kind == EngineKind.VLC && mkvFocusEngines.size == 2)
+    mkvFocus.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }
