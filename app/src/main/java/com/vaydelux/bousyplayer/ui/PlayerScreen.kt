@@ -377,6 +377,10 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                                 activate()
                             }, modifier = Modifier.fillMaxWidth())
                         }
+                        Text("Decoder status reads failed: ${session.playbackSnapshotFaults} · " +
+                            "consecutive: ${session.consecutivePlaybackSnapshotFaults}/3",
+                            color = CinemaColor.muted,
+                            style = MaterialTheme.typography.labelSmall)
                         Text("Session health · on-device only", color = CinemaColor.muted)
                         Text("Buffered polls: ${health.bufferingPercent}% of ${health.samples} · " +
                             "Errors: ${health.errorEvents} · Engine handoffs: ${health.engineHandoffs} · " +

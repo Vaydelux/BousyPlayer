@@ -105,3 +105,13 @@ assert 'onMemoryPressure(20)' in instrumentedSource and 'onMemoryPressure(80)' i
 assert 'assertNull(player.engine)' in instrumentedSource and 'assertFalse(player.wantsPlay)' in instrumentedSource, 'decoder release / paused reentry tests missing'
 assert 'switchEngine(EngineKind.VLC)' in instrumentedSource, 'manual engine-switch lifecycle test missing'
 print('PASS: compile-only device instrumentation for ownership, background trim and user Pause')
+
+assert 'Decoder status reads failed:' in source and 'consecutivePlaybackSnapshotFaults' in source, 'bounded snapshot diagnostics missing'
+playerSessionSource = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+assert 'val first = next.snapshot()' in playerSessionSource, 'decoder ownership must require successful initial snapshot'
+assert playerSessionSource.index('val first = next.snapshot()') < playerSessionSource.index('engine = next'), 'do not own failed native decoder'
+assert 'DecoderSnapshotFailurePolicy.nextConsecutive' in playerSessionSource, 'snapshot failures must be bounded and recoverable'
+deviceTests = instrumentedSession.read_text()
+assert 'failedFirstNativeSnapshotIsReleasedAndNotOwnedByTheSession' in deviceTests
+assert 'transientSnapshotFaultDoesNotReallocateNativeEngine' in deviceTests
+print('PASS: startup native ownership and bounded, private snapshot fault diagnostics')

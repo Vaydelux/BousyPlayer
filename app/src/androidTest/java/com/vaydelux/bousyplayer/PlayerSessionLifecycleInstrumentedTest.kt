@@ -24,6 +24,7 @@ class PlayerSessionLifecycleInstrumentedTest {
     private class FakeDecoder(context: Context, override val kind: EngineKind) : PlaybackEngine {
         override val view: View = View(context)
         var released = 0
+        var snapshotFailsRemaining = 0
         var loadedAt = -1L
         var state = PlaybackSnapshot(
             duration = 300_000L, canSeek = true, loading = false
@@ -34,7 +35,13 @@ class PlayerSessionLifecycleInstrumentedTest {
             state = state.copy(position = startMs, isPlaying = shouldPlay,
                 loading = false, ended = false, error = null)
         }
-        override fun snapshot(): PlaybackSnapshot = state
+        override fun snapshot(): PlaybackSnapshot {
+            if (snapshotFailsRemaining > 0) {
+                snapshotFailsRemaining--
+                throw IllegalStateException("synthetic secret should not appear in UI")
+            }
+            return state
+        }
         override fun play() { state = state.copy(isPlaying = true) }
         override fun pause() { state = state.copy(isPlaying = false) }
         override fun seek(positionMs: Long) { state = state.copy(position = positionMs) }
@@ -78,6 +85,55 @@ class PlayerSessionLifecycleInstrumentedTest {
             player.close()
         }
         assertEquals(1, decoders.last().released)
+    }
+
+    @Test
+    fun failedFirstNativeSnapshotIsReleasedAndNotOwnedByTheSession() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val decoders = mutableListOf<FakeDecoder>()
+        val src = MediaSource(Uri.parse("content://bousyplayer.test/invalid.mp4"),
+            "invalid.mp4", false)
+        val session = PlayerSession(context, listOf(src), 0, RecentStore(context),
+            initialPlay = false, engineFactory = { kind ->
+                FakeDecoder(context, kind).also {
+                    it.snapshotFailsRemaining = 1
+                    decoders.add(it)
+                }
+            })
+        assertEquals(1, decoders.size)
+        assertNull(session.engine)
+        assertEquals(1, decoders[0].released)
+        assertNotNull(session.snapshot.error)
+        assertFalse(session.wantsPlay)
+        session.close()
+        assertEquals(1, decoders[0].released)
+    }
+
+    @Test
+    fun transientSnapshotFaultDoesNotReallocateNativeEngine() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val decoders = mutableListOf<FakeDecoder>()
+        val src = MediaSource(Uri.parse("content://bousyplayer.test/status.mp4"),
+            "status.mp4", false)
+        val session = PlayerSession(context, listOf(src), 0, RecentStore(context),
+            initialPlay = false, engineFactory = { kind ->
+                FakeDecoder(context, kind).also(decoders::add)
+            })
+        try {
+            decoders.single().snapshotFailsRemaining = 2
+            session.refresh()
+            assertNull(session.snapshot.error)
+            assertEquals(1, decoders.size)
+            session.refresh()
+            assertNull(session.snapshot.error)
+            assertEquals(2, session.playbackSnapshotFaults)
+            session.refresh()
+            assertEquals(0, session.consecutivePlaybackSnapshotFaults)
+            assertEquals(1, decoders.size)
+        } finally {
+            session.close()
+        }
+        assertEquals(1, decoders[0].released)
     }
 
     @Test
