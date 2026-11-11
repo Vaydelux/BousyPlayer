@@ -38,6 +38,10 @@ class PlayerSession(
         private set
     var aspect by mutableStateOf(AspectMode.FIT)
         private set
+    var subtitleAppearance by mutableStateOf(SubtitleAppearance())
+        private set
+    private val healthRecorder = PlaybackHealthRecorder()
+    val playbackHealth: PlaybackHealth get() = healthRecorder.summary
     var kind by mutableStateOf(EngineKind.MEDIA3)
         private set
     var message by mutableStateOf<String?>(null)
@@ -157,6 +161,7 @@ class PlayerSession(
         captureCurrentProgress()
         engine?.let { old ->
             // Release old native resources before allocating any new engine.
+            healthRecorder.engineChanged()
             engine = null
             runCatching { old.release() }
         }
@@ -192,6 +197,8 @@ class PlayerSession(
             try {
                 next.speed(speed)
                 next.aspect(aspect)
+                // Unavailable caption styling must not prevent video playback.
+                runCatching { next.applySubtitleAppearance(subtitleAppearance) }
                 next.load(source.uri, resumeAt, shouldStart, externalSubtitle)
                 engine = next
                 kind = candidate
@@ -223,6 +230,10 @@ class PlayerSession(
                 snapshot.copy(loading = false, error = "Playback state unavailable")
             }
         }
+        healthRecorder.sample(
+            buffering = snapshot.loading && wantsPlay && !suspendedByFocus && snapshot.error == null,
+            error = snapshot.error != null, nowMs = clockMs()
+        )
         // Container metadata alone does not prove successful decoder startup.
         // Keep AUTO local-file fallback possible when native demuxing discovers
         // duration but fails before playback actually begins.
@@ -367,6 +378,16 @@ class PlayerSession(
     fun changeAspect(next: AspectMode) {
         aspect = next
         runCatching { engine?.aspect(next) }
+    }
+    fun changeSubtitleAppearance(next: SubtitleAppearance) {
+        if (closed) return
+        subtitleAppearance = next
+        val accepted = runCatching { engine?.applySubtitleAppearance(next) == true }.getOrDefault(false)
+        message = if (accepted) {
+            "Subtitle appearance applied. Availability depends on the subtitle format."
+        } else {
+            "Live subtitle appearance is unavailable in ${kind.label}; try Media3 or libmpv."
+        }
     }
     val diagnostic: PlaybackDiagnostic?
         get() = snapshot.error?.let { PlaybackDiagnosticPolicy.from(kind, it) }

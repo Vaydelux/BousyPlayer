@@ -2,6 +2,8 @@ package com.vaydelux.bousyplayer.engine
 
 import android.content.Context
 import android.net.Uri
+import android.graphics.Color
+import android.graphics.Typeface
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -14,6 +16,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import com.vaydelux.bousyplayer.model.SourcePolicy
 
@@ -25,20 +28,20 @@ class Media3Engine(context: Context) : PlaybackEngine {
     // Track groups change rarely; allocating formats and labels on every 400ms UI tick
     // is unnecessary pressure on 32-bit/low-memory Android TV devices.
     private var displayedTracks: List<MediaTrack> = emptyList()
-    private fun displayTracks(tracks: Tracks): List<MediaTrack> = tracks.groups.flatMapIndexed { groupIndex, group ->
+    private fun displayTracks(tracks: Tracks): List<MediaTrack> = tracks.groups.take(24).flatMapIndexed { groupIndex, group ->
         val kind = when (group.type) {
             C.TRACK_TYPE_AUDIO -> TrackKind.AUDIO
             C.TRACK_TYPE_TEXT -> TrackKind.SUBTITLE
             else -> null
         } ?: return@flatMapIndexed emptyList()
-        (0 until group.length).map { index ->
+        (0 until minOf(group.length, 32)).map { index ->
             val format = group.getTrackFormat(index)
             MediaTrack(
                 id = "$groupIndex:$index",
                 label = buildString {
                     append(format.label ?: format.language ?: "Track ${index + 1}")
                     format.codecs?.let { append(" · "); append(it) }
-                },
+                }.take(120),
                 kind = kind,
                 selected = group.isTrackSelected(index)
             )
@@ -139,8 +142,30 @@ class Media3Engine(context: Context) : PlaybackEngine {
         native.trackSelectionParameters = native.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
     }
+    override fun applySubtitleAppearance(appearance: SubtitleAppearance): Boolean {
+        val captions = view.subtitleView ?: return false
+        val foreground = when (appearance.color) {
+            SubtitleColor.WHITE -> Color.WHITE
+            SubtitleColor.YELLOW -> Color.YELLOW
+            SubtitleColor.BLACK -> Color.BLACK
+        }
+        val panel = if (appearance.color == SubtitleColor.BLACK) {
+            Color.argb(225, 255, 255, 255)
+        } else {
+            Color.argb(195, 0, 0, 0)
+        }
+        val outline = if (appearance.color == SubtitleColor.BLACK) Color.WHITE else Color.BLACK
+        captions.setApplyEmbeddedStyles(false)
+        captions.setApplyEmbeddedFontSizes(false)
+        captions.setFractionalTextSize(appearance.size.media3Fraction)
+        captions.setStyle(CaptionStyleCompat(foreground, panel, Color.TRANSPARENT,
+            CaptionStyleCompat.EDGE_TYPE_OUTLINE, outline, Typeface.DEFAULT_BOLD))
+        return true
+    }
     override fun detachView() { view.player = null }
     override fun release() {
+        displayedTracks = emptyList()
+        view.keepScreenOn = false
         native.removeListener(listener)
         detachView()
         native.release()

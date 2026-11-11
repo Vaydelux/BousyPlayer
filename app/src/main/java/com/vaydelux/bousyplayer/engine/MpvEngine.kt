@@ -45,6 +45,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         }
     }
 
+    private var subtitleAppearance = SubtitleAppearance()
     private var speedValue = 1f
     private var aspectMode = AspectMode.FIT
     @Volatile private var nativeTracks: List<MediaTrack> = emptyList()
@@ -126,6 +127,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
                         runCatching { updateTracks() }
                         runCatching { native.setPropertyDouble("speed", speedValue.toDouble()) }
                         runCatching { applyAspect() }
+                        runCatching { applySubtitleAppearance(subtitleAppearance) }
                         retrySavedSeek(generation, 0)
                         // Never force Play when the user paused during loading or seeking.
                         runCatching { native.setPropertyBoolean("pause", !intendedPlay) }
@@ -220,6 +222,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         errorMessage = null
         durationMs = 0L
         positionMs = 0L
+        nativeTracks = emptyList()
         intendedPlay = shouldPlay
         seekAfterLoadMs = startMs.coerceAtLeast(0L)
         try {
@@ -259,7 +262,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
             val id = native.getPropertyInt("track-list/$i/id") ?: return@mapNotNull null
             val title = native.getPropertyString("track-list/$i/title")
                 ?: native.getPropertyString("track-list/$i/lang") ?: "Track $id"
-            MediaTrack("${if (type == TrackKind.AUDIO) "a" else "s"}:$id", title,
+            MediaTrack("${if (type == TrackKind.AUDIO) "a" else "s"}:$id", title.take(120),
                 type, native.getPropertyBoolean("track-list/$i/selected") == true)
         }
     }
@@ -313,6 +316,18 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         updateTracks()
     }
     override fun disableSubtitles() { if (!released) { native.setPropertyString("sid", "no"); updateTracks() } }
+    override fun applySubtitleAppearance(appearance: SubtitleAppearance): Boolean {
+        if (released) return false
+        subtitleAppearance = appearance
+        return runCatching {
+            native.setPropertyDouble("sub-font-size", appearance.size.mpvFontSize)
+            native.setPropertyString("sub-color", appearance.color.mpvHex)
+            native.setPropertyString("sub-border-color",
+                if (appearance.color == SubtitleColor.BLACK) "#FFFFFFFF" else "#000000FF")
+            native.setPropertyString("sub-back-color",
+                if (appearance.color == SubtitleColor.BLACK) "#FFFFFFD0" else "#000000B0")
+        }.isSuccess
+    }
     override fun detachView() {
         if (!released && surfaceAttached) {
             runCatching { native.detachSurface() }
@@ -324,6 +339,8 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         released = true
         sourceRequested = false
         pendingMediaUrl = null
+        nativeTracks = emptyList()
+        seekAfterLoadMs = 0L
         loadGeneration++
         main.removeCallbacksAndMessages(null)
         runCatching { native.removeObserver(observer) }

@@ -154,3 +154,60 @@ object SessionRestorePolicy {
     fun safeTitle(title: String): String =
         title.take(MAX_TITLE_LENGTH).ifBlank { "Previous video" }
 }
+
+/** TV-readable caption controls; no Android dependencies in this policy module. */
+enum class SubtitleSize(val label: String, val media3Fraction: Float, val mpvFontSize: Double) {
+    SMALL("Small", 0.047f, 42.0),
+    STANDARD("Standard", 0.061f, 57.0),
+    LARGE("Large", 0.080f, 76.0)
+}
+enum class SubtitleColor(val label: String, val mpvHex: String) {
+    WHITE("White", "#FFFFFFFF"),
+    YELLOW("Yellow", "#FFFF00FF"),
+    BLACK("Black on light panel", "#000000FF")
+}
+data class SubtitleAppearance(
+    val size: SubtitleSize = SubtitleSize.STANDARD,
+    val color: SubtitleColor = SubtitleColor.WHITE
+)
+
+/** Bounded, local-only session health counters: no media URI, titles, IPs or file paths. */
+data class PlaybackHealth(
+    val samples: Int, val bufferingSamples: Int, val errorEvents: Int,
+    val engineHandoffs: Int, val longestBufferMs: Long
+) {
+    val bufferingPercent: Int
+        get() = if (samples == 0) 0 else (bufferingSamples.toLong() * 100L / samples).toInt()
+}
+class PlaybackHealthRecorder {
+    private var samples = 0
+    private var bufferingSamples = 0
+    private var errorEvents = 0
+    private var engineHandoffs = 0
+    private var previousError = false
+    private var bufferingSince: Long? = null
+    private var longestBufferMs = 0L
+
+    fun sample(buffering: Boolean, error: Boolean, nowMs: Long) {
+        if (samples >= 4_096) {
+            samples /= 2
+            bufferingSamples /= 2
+        }
+        samples++
+        if (buffering) bufferingSamples++
+        if (error && !previousError) errorEvents = (errorEvents + 1).coerceAtMost(999)
+        previousError = error
+        if (buffering) {
+            if (bufferingSince == null) bufferingSince = nowMs
+            val elapsed = (nowMs - (bufferingSince ?: nowMs)).coerceIn(0L, 120_000L)
+            if (elapsed > longestBufferMs) longestBufferMs = elapsed
+        } else {
+            bufferingSince = null
+        }
+    }
+    fun engineChanged() {
+        engineHandoffs = (engineHandoffs + 1).coerceAtMost(999)
+    }
+    val summary: PlaybackHealth
+        get() = PlaybackHealth(samples, bufferingSamples, errorEvents, engineHandoffs, longestBufferMs)
+}

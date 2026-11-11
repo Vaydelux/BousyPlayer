@@ -223,14 +223,14 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         val now = SystemClock.elapsedRealtime()
         if (lastTrackPollMs < 0L || now - lastTrackPollMs >= 2_000L) {
             val audioTracks = runCatching {
-                native.audioTracks?.map { MediaTrack("a:${it.id}", it.name ?: "Audio", TrackKind.AUDIO, it.id == native.audioTrack) }
+                native.audioTracks?.take(48)?.map { MediaTrack("a:${it.id}", (it.name ?: "Audio").take(120), TrackKind.AUDIO, it.id == native.audioTrack) }
             }.getOrNull().orEmpty()
             val subs = runCatching {
-                native.spuTracks?.filter { it.id >= 0 }?.map {
-                    MediaTrack("s:${it.id}", it.name ?: "Subtitle", TrackKind.SUBTITLE, it.id == native.spuTrack)
+                native.spuTracks?.filter { it.id >= 0 }?.take(48)?.map {
+                    MediaTrack("s:${it.id}", (it.name ?: "Subtitle").take(120), TrackKind.SUBTITLE, it.id == native.spuTrack)
                 }
             }.getOrNull().orEmpty()
-            cachedTracks = audioTracks + subs
+            cachedTracks = (audioTracks + subs).take(80)
             lastTrackPollMs = now
         }
         val nativePlaying = runCatching { native.isPlaying }.getOrDefault(false)
@@ -294,6 +294,7 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         released = true
         requestedPlay = false
         mediaConfigured = false
+        cachedTracks = emptyList()
         main.removeCallbacksAndMessages(null)
         runCatching { native.setEventListener(null) }
         detachView()

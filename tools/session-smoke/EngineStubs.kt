@@ -15,6 +15,7 @@ interface PlaybackEngine {
     fun play(); fun pause(); fun seek(positionMs: Long)
     fun speed(value: Float); fun aspect(value: AspectMode)
     fun selectTrack(id: String, kind: TrackKind); fun disableSubtitles()
+    fun applySubtitleAppearance(appearance: SubtitleAppearance): Boolean = false
     fun release()
 }
 class Media3Engine(context: Context) : PlaybackEngine by UnusedEngine()

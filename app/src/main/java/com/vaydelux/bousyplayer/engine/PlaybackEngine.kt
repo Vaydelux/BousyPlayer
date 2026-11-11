@@ -28,6 +28,8 @@ interface PlaybackEngine {
     fun aspect(value: AspectMode)
     fun selectTrack(id: String, kind: TrackKind)
     fun disableSubtitles()
+    /** false = engine cannot apply live caption style; never claim success. */
+    fun applySubtitleAppearance(appearance: SubtitleAppearance): Boolean = false
     fun detachView()
     fun release()
 }
