@@ -97,3 +97,11 @@ assert 'ActionButton("Retry pending seek"' in source, 'manual stalled-seek recov
 assert 'session.retryPendingSeek()' in source, 'manual retry must not rebuild decoder'
 assert 'fun retryPendingSeek(): Boolean' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'bounded pending-seek retry API missing'
 print('PASS: explicit EOF replay and user-triggered seek recovery controls')
+
+instrumentedSession = Path('app/src/androidTest/java/com/vaydelux/bousyplayer/PlayerSessionLifecycleInstrumentedTest.kt')
+assert instrumentedSession.is_file(), 'device lifecycle regression test source missing'
+instrumentedSource = instrumentedSession.read_text()
+assert 'onMemoryPressure(20)' in instrumentedSource and 'onMemoryPressure(80)' in instrumentedSource, 'OS background trim lifecycle test missing'
+assert 'assertNull(player.engine)' in instrumentedSource and 'assertFalse(player.wantsPlay)' in instrumentedSource, 'decoder release / paused reentry tests missing'
+assert 'switchEngine(EngineKind.VLC)' in instrumentedSource, 'manual engine-switch lifecycle test missing'
+print('PASS: compile-only device instrumentation for ownership, background trim and user Pause')
