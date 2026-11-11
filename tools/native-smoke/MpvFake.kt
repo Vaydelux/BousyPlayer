@@ -26,6 +26,7 @@ class MPVLib {
         fun event(eventId: Int)
     }
     val commands = mutableListOf<List<String>>()
+    var failNextStop = false
     val stringProperties = mutableMapOf<String, String>()
     val doubleProperties = mutableMapOf<String, Double>()
     var destroyed = false
@@ -40,7 +41,13 @@ class MPVLib {
     fun addObserver(observer: EventObserver) { this.observer = observer }
     fun removeObserver(observer: EventObserver) { if (this.observer === observer) this.observer = null }
     fun observeProperty(name: String, format: Int) {}
-    fun command(args: Array<String>) { commands += args.toList() }
+    fun command(args: Array<String>) {
+        if (args.firstOrNull() == "stop" && failNextStop) {
+            failNextStop = false
+            throw IllegalStateException("synthetic libmpv stop failure")
+        }
+        commands += args.toList()
+    }
     fun getPropertyBoolean(name: String): Boolean? = bools[name] ?: (name == "seekable")
     fun getPropertyInt(name: String): Int? = 0
     fun getPropertyString(name: String): String? = null

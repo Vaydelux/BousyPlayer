@@ -1,5 +1,6 @@
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.view.SurfaceView
 import com.vaydelux.bousyplayer.engine.MpvEngine
 import com.vaydelux.bousyplayer.engine.VlcEngine
@@ -77,4 +78,76 @@ fun main() {
     check(vlcFake.playCount == 1) { "VLC resumed after explicit pause" }
     vlc.release()
     println("PASS: LibVLC waits for surface and doesn't override Pause")
+
+    // Repeated source replacement must never accumulate file descriptors. The
+    // previous native demuxer is stopped BEFORE we close its old SAF handle.
+    val beforeReplacement = ParcelFileDescriptor.activeCount
+    val replacement = MpvEngine(context)
+    val replacementNative = checkNotNull(MPVLib.last)
+    replacement.load(uri, 11_000L, false)
+    check(ParcelFileDescriptor.activeCount == beforeReplacement + 1) {
+        "mpv failed to acquire one SAF descriptor for local source"
+    }
+    replacement.load(Uri.parse("content://media/second.ts"), 22_000L, false)
+    check(ParcelFileDescriptor.activeCount == beforeReplacement + 1) {
+        "mpv leaked the first SAF descriptor on source replacement"
+    }
+    replacementNative.failNextStop = true
+    val newMpvLoad = runCatching {
+        replacement.load(Uri.parse("content://media/third.ts"), 33_000L, false)
+    }
+    check(newMpvLoad.isFailure && ParcelFileDescriptor.activeCount == beforeReplacement + 1) {
+        "mpv failed stop must dispose newly opened FD and retain previous FD"
+    }
+    replacement.release()
+    replacement.release()
+    check(ParcelFileDescriptor.activeCount == beforeReplacement &&
+        replacementNative.commands.any { it.firstOrNull() == "stop" } &&
+        replacementNative.destroyed) {
+        "mpv release did not stop/destroy decoder or close SAF descriptors exactly once"
+    }
+    println("PASS: libmpv repeated local load, failed stop, and idempotent FD teardown")
+
+    val beforeVlc = ParcelFileDescriptor.activeCount
+    val resourceVlc = VlcEngine(context)
+    resourceVlc.load(uri, 42_000L, true)
+    val resourceNative = checkNotNull(MediaPlayer.last)
+    check(ParcelFileDescriptor.activeCount == beforeVlc + 1) {
+        "VLC failed to keep one SAF descriptor for its active media"
+    }
+    resourceVlc.load(Uri.parse("content://media/second.mkv"), 55_000L, true)
+    check(ParcelFileDescriptor.activeCount == beforeVlc + 1) {
+        "VLC leaked old SAF descriptor after successful source replacement"
+    }
+    resourceNative.failNextStop = true
+    val failedVlcLoad = runCatching {
+        resourceVlc.load(Uri.parse("content://media/third.mkv"), 77_000L, true)
+    }
+    check(failedVlcLoad.isFailure && ParcelFileDescriptor.activeCount == beforeVlc + 1) {
+        "VLC must not close or replace an FD while the old native demuxer refuses to stop"
+    }
+    resourceVlc.release()
+    resourceVlc.release()
+    check(ParcelFileDescriptor.activeCount == beforeVlc && resourceNative.releaseCount == 1) {
+        "VLC release leaked SAF descriptor or released the native decoder twice"
+    }
+    println("PASS: LibVLC source replacement, native stop failure and idempotent FD teardown")
+
+    val beforeSeek = ParcelFileDescriptor.activeCount
+    val seekVlc = VlcEngine(context)
+    seekVlc.load(uri, 82_000L, true)
+    val seekNative = checkNotNull(MediaPlayer.last)
+    (seekVlc.view as SurfaceView).holder.create()
+    seekVlc.seek(92_000L)
+    seekNative.emit(MediaPlayer.Event.Playing)
+    android.os.Handler.drainDelayedOnce()
+    check(seekNative.time == 92_000L) {
+        "VLC delayed saved-resume retry overrode explicit manual seek"
+    }
+    seekVlc.release()
+    check(ParcelFileDescriptor.activeCount == beforeSeek) {
+        "VLC manual-seek test leaked an SAF descriptor"
+    }
+    println("PASS: LibVLC manual seek supersedes delayed saved resume")
+
 }

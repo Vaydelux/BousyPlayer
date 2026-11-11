@@ -1,9 +1,22 @@
 package android.os
 import java.io.FileDescriptor
 class ParcelFileDescriptor : java.io.Closeable {
-    val fd: Int = 9
+    companion object {
+        var opened = 0
+            private set
+        var closed = 0
+            private set
+        val activeCount: Int get() = opened - closed
+    }
+    val fd: Int = ++opened + 8
     val fileDescriptor = FileDescriptor()
-    override fun close() { }
+    private var didClose = false
+    override fun close() {
+        if (!didClose) {
+            didClose = true
+            closed++
+        }
+    }
 }
 class Looper { companion object { fun getMainLooper() = Looper() } }
 class Handler(looper: Looper) {

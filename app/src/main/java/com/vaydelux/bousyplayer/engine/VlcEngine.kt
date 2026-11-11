@@ -173,8 +173,11 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         // Network and local SAF URIs are supplied directly. Native engine capability
         // varies with providers and formats; surface failures remain visible.
         // Explicitly stop previous native demuxer before closing a previous SAF descriptor.
-        runCatching { native.stop() }
-        activeDescriptor?.close()
+        // A failed stop means native code may still be reading the previous
+        // SAF descriptor. Never close it and assign a new media source in that case.
+        // PlayerSession will release this failed engine before attempting recovery.
+        native.stop()
+        runCatching { activeDescriptor?.close() }
         activeDescriptor = null
         mediaConfigured = false
         val nextFd = if (uri.scheme == "content")
@@ -262,7 +265,12 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         if (!released && native.isPlaying) native.pause()
     }
     override fun seek(positionMs: Long) {
-        if (!released && native.isSeekable) native.setTime(positionMs.coerceAtLeast(0))
+        if (released || !native.isSeekable) return
+        // Native resume retry runs on delayed callbacks. A successful user seek
+        // supersedes the old saved resume, or the subsequent Playing event would
+        // incorrectly jump back to the previous Continue Watching timestamp.
+        native.setTime(positionMs.coerceAtLeast(0))
+        resumePosition = 0L
     }
     override fun speed(value: Float) { if (!released) native.rate = value }
     override fun aspect(value: AspectMode) { aspectMode = value; applyAspect() }
@@ -302,6 +310,8 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         runCatching { native.release() }
         runCatching { activeDescriptor?.close() }
         activeDescriptor = null
+        resumePosition = 0L
+        lastTrackPollMs = -1L
         runCatching { vlc.release() }
     }
 }

@@ -211,7 +211,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
             nextFd?.close()
             throw failure
         }
-        descriptor?.close()
+        runCatching { descriptor?.close() }
         descriptor = nextFd
         loadGeneration++
         pendingMediaUrl = nextUrl
@@ -344,9 +344,13 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
         loadGeneration++
         main.removeCallbacksAndMessages(null)
         runCatching { native.removeObserver(observer) }
+        // Stop demuxing before native teardown; destroy remains authoritative,
+        // and the SAF descriptor is retained until both calls have completed.
+        runCatching { native.command(arrayOf("stop")) }
         runCatching { native.detachSurface() }
         runCatching { native.destroy() }
-        descriptor?.close(); descriptor = null
+        runCatching { descriptor?.close() }
+        descriptor = null
         surfaceAttached = false
     }
 }

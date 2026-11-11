@@ -47,8 +47,20 @@ class MediaPlayer(vlc: LibVLC) {
     val audioTrack get() = _audioTrack
     val spuTrack get() = _spuTrack
     var playCount = 0
-    fun setEventListener(listener: EventListener?) {}
-    fun stop() { isPlaying = false }
+    private var eventListener: EventListener? = null
+    var failNextStop = false
+    var stopCount = 0
+    var releaseCount = 0
+    fun emit(type: Int) { eventListener?.onEvent(Event(type)) }
+    fun setEventListener(listener: EventListener?) { eventListener = listener }
+    fun stop() {
+        if (failNextStop) {
+            failNextStop = false
+            throw IllegalStateException("synthetic native stop failure")
+        }
+        stopCount++
+        isPlaying = false
+    }
     fun play() { isPlaying = true; playCount++ }
     fun pause() { isPlaying = false }
     fun setTime(value: Long) { _time = value }
@@ -56,5 +68,5 @@ class MediaPlayer(vlc: LibVLC) {
     fun setSpuTrack(value: Int) { _spuTrack = value }
     fun setAspectRatio(value: String?) {}
     fun setScale(value: Float) {}
-    fun release() {}
+    fun release() { releaseCount++ }
 }
