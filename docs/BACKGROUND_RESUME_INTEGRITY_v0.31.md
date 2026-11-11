@@ -18,3 +18,7 @@ Date: November 12, 2026
 ## Qualification and limitations
 
 The actual PlayerSession is compiled with fakes under Kotlin JVM session smoke. Hosted Android CI compiles and statically qualifies the app, Android unit tests, instrumentation source, and both ARM ABI debug packages, then enforces resolved Maven OSV scanning and native ELF analysis. These checks do not certify real long-session ARM32 memory, CPU power, decoder hardware behavior, Android TV remote controls, SAF cloud-provider quirks, native C/C++ CVEs or production release signing.
+
+## Foreground permission reconciliation
+
+The Home screen now refreshes the visible, grant-filtered Continue Watching list on the next Activity ON_START event while no player session is active. That lets temporarily inaccessible SAF documents reappear without a process restart or mutation of stored history. The lifecycle listener is unregistered when its Compose owner changes. This is a visibility refresh, not an automatic file reopen or autoplay.
