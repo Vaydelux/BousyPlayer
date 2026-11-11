@@ -225,6 +225,15 @@ class PlaybackPolicyTest {
         assertEquals(listOf(EngineKind.MEDIA3),
             PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, false))
     }
+    @Test fun explicitBackwardSeekNeedsProximityNotStaleForwardTimestamp() {
+        assertFalse(PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 110_000L))
+        assertTrue(PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 18_000L))
+        assertTrue(PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 21_000L))
+        assertFalse(PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 24_000L))
+        assertTrue(PlaybackResumePolicy.explicitSeekAcknowledged(0L, 4_000L))
+        assertFalse(PlaybackResumePolicy.explicitSeekAcknowledged(0L, 8_000L))
+        assertTrue(PlaybackResumePolicy.explicitSeekAcknowledged(Long.MAX_VALUE, Long.MAX_VALUE))
+    }
     @Test fun completedVideoDoesNotResumeAtTheCredits() {
         assertTrue(PlaybackResumePolicy.isCompleted(950_000L, 1_000_000L))
         assertEquals(0L, PlaybackResumePolicy.startingPosition(950_000L, 1_000_000L))

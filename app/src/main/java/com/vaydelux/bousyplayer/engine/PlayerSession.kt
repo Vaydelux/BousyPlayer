@@ -81,6 +81,7 @@ class PlayerSession(
     // Do not overwrite Continue Watching or switch from a transient 0:00/0:02
     // timeline until its reported position acknowledges the requested resume.
     private var resumePositionAcknowledged = true
+    private var awaitingExplicitSeek = false
     private var pendingSeekToStart = false
     private var suspendedByFocus = false
     private val audioFocus = AudioFocusCoordinator(
@@ -120,7 +121,16 @@ class PlayerSession(
             // Start Over. Do not persist that stale old time as the new progress.
             if (reported.position > 5_000L) return false
             pendingSeekToStart = false
+            awaitingExplicitSeek = false
             resumePositionAcknowledged = true
+        }
+        if (awaitingExplicitSeek) {
+            if (PlaybackResumePolicy.explicitSeekAcknowledged(
+                    lastAttemptedPositionMs, reported.position)) {
+                awaitingExplicitSeek = false
+                resumePositionAcknowledged = true
+            }
+            return resumePositionAcknowledged
         }
         if (resumePositionAcknowledged) return true
         if (PlaybackResumePolicy.resumePositionAcknowledged(
@@ -184,6 +194,7 @@ class PlayerSession(
             else PlaybackResumePolicy.startingPosition(last?.positionMs ?: 0L, last?.durationMs ?: 0L)
         lastAttemptedPositionMs = resumeAt
         resumePositionAcknowledged = resumeAt == 0L
+        awaitingExplicitSeek = false
         pendingSeekToStart = false
         val shouldStart = wantsPlay && !suspendedByFocus && audioFocus.acquire()
         val focusDenied = wantsPlay && !shouldStart && !suspendedByFocus
@@ -399,6 +410,7 @@ class PlayerSession(
         // engine's reported position before persisting the new timeline.
         lastAttemptedPositionMs = target
         resumePositionAcknowledged = false
+        awaitingExplicitSeek = true
         pendingSeekToStart = target == 0L
         phaseTracker.explicitSeekRequested(clockMs())
         refresh()
@@ -547,6 +559,7 @@ class PlayerSession(
         saveProgress()
         lastAttemptedPositionMs = position
         resumePositionAcknowledged = true
+        awaitingExplicitSeek = false
         pendingSeekToStart = false
         val old = engine
         engine = null

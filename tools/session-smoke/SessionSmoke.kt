@@ -27,7 +27,10 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     override fun snapshot() = current
     override fun play() { playingRequested = true; current = current.copy(isPlaying = !stalledOnPlay) }
     override fun pause() { pauseCalls++; playingRequested = false; current = current.copy(isPlaying = false) }
-    override fun seek(positionMs: Long) { current = current.copy(position = positionMs) }
+    var delaySeek = false
+    override fun seek(positionMs: Long) {
+        if (!delaySeek) current = current.copy(position = positionMs)
+    }
     override fun speed(value: Float) = Unit
     override fun aspect(value: AspectMode) = Unit
     override fun release() { released++; chronology.add("release:${type.name}") }
@@ -712,6 +715,43 @@ fun main() {
     verify("focus-restored silent MKV startup eventually switches once",
         mkvFocus.kind == EngineKind.VLC && mkvFocusEngines.size == 2)
     mkvFocus.close()
+
+    val backwardsSource = media("backward-seek.mp4")
+    val backwardsStore = RecentStore().also {
+        it.update(backwardsSource, 110_000L, 300_000L)
+    }
+    var backwardsClock = 0L
+    val backwardsEngines = mutableListOf<FakeEngine>()
+    val backwards = PlayerSession(ctx, listOf(backwardsSource), 0, backwardsStore,
+        clockMs = { backwardsClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(backwardsEngines::add)
+    }
+    val backwardsNative = backwardsEngines.last()
+    backwardsNative.current = backwardsNative.current.copy(
+        position = 110_000L, duration = 300_000L, canSeek = true,
+        isPlaying = true, loading = false
+    )
+    backwards.refresh()
+    backwardsNative.delaySeek = true
+    backwards.seekTo(18_000L)
+    verify("backward seek stays pending while decoder reports stale 1:50",
+        backwards.seekDisplayPosition() == 18_000L &&
+        backwards.playbackStatus.phase == PlaybackPhase.SEEKING)
+    verify("unconfirmed backward seek cannot overwrite saved Continue Watching",
+        backwardsStore.read().first().positionMs == 110_000L)
+    backwardsClock = 12_000L
+    backwards.refresh()
+    verify("backward seek delay warns without replacing decoder",
+        backwards.playbackStatus.phase == PlaybackPhase.SEEK_DELAYED &&
+        backwardsEngines.size == 1 && backwards.wantsPlay)
+    backwardsNative.current = backwardsNative.current.copy(position = 18_000L)
+    backwards.refresh()
+    verify("native acknowledgement clears delayed seek warning",
+        backwards.playbackStatus.phase == PlaybackPhase.PLAYING &&
+        backwards.seekDisplayPosition() == 18_000L)
+    verify("acknowledged backward seek saves new location",
+        backwardsStore.read().first().positionMs == 18_000L)
+    backwards.close()
 
     println("PASS: $counter session ownership/behavior checks")
 }

@@ -111,6 +111,19 @@ object PlaybackResumePolicy {
         requestedMs <= 0L || ended || (reportedMs >= 0L &&
             reportedMs >= (requestedMs - 5_000L).coerceAtLeast(1L))
 
+    /**
+     * Unlike initial Continue Watching, an explicit seek may move backwards.
+     * Old decoder timestamps far beyond the requested target must not be
+     * accepted as confirmation of the new seek.
+     */
+    fun explicitSeekAcknowledged(requestedMs: Long, reportedMs: Long): Boolean {
+        if (requestedMs < 0L || reportedMs < 0L) return false
+        val low = (requestedMs - 5_000L).coerceAtLeast(0L)
+        val high = if (requestedMs > Long.MAX_VALUE - 5_000L) Long.MAX_VALUE
+            else requestedMs + 5_000L
+        return reportedMs in low..high
+    }
+
     fun isCompleted(positionMs: Long, durationMs: Long): Boolean =
         durationMs > 0 && positionMs >= durationMs - durationMs / 20L
 

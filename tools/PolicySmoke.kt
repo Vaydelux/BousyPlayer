@@ -149,6 +149,12 @@ fun main() {
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))
+    checkNamed("explicit backward seek rejects stale newer decoder time",
+        !PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 110_000L))
+    checkNamed("explicit backward seek accepts near requested position",
+        PlaybackResumePolicy.explicitSeekAcknowledged(18_000L, 18_350L))
+    checkNamed("explicit seek high bound cannot overflow",
+        PlaybackResumePolicy.explicitSeekAcknowledged(Long.MAX_VALUE, Long.MAX_VALUE))
     checkNamed("completed videos have no stale resume", PlaybackResumePolicy.startingPosition(95,100) == 0L)
     checkNamed("midpoint resume preserved", PlaybackResumePolicy.startingPosition(40,100) == 40L)
     checkNamed("unknown duration never seeds saved position", PlaybackResumePolicy.startingPosition(40,0) == 0L)
