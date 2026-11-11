@@ -42,6 +42,13 @@ assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-native-inventory.json' in work
 assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-native-file-sbom.cdx.json' in workflow, 'Native SBOM filename mismatch'
 assert f'--version {version}' in qualification, 'Native metadata version mismatch'
 assert '*.apk *.json > SHA256SUMS.txt' in workflow, 'SBOM and scan reports must be checksummed'
+assert 'tools/apk_signing.py' in qualification and '--arm32' in qualification and '--arm64' in qualification, 'Both APK signatures must be checked'
+assert 'debug-signing-report.json' in qualification and 'signing-report.json' in workflow, 'Signing evidence must be published'
+assert 'tools/release_integrity.py create' in workflow and 'tools/release_integrity.py verify' in workflow, 'Release manifest must be created and verified'
+assert 'release-manifest.json' in (root / 'tools/release_integrity.py').read_text(), 'Release evidence generator missing'
+assert 'tools/test_apk_signing.py' in qualification and 'tools/test_release_integrity.py' in qualification, 'Offline negative security cases missing'
+for source in (qualification_workflow, workflow):
+    assert 'python3 tools/test_apk_signing.py' in source and 'python3 tools/test_release_integrity.py' in source, 'Release-integrity self-tests missing from preflight'
 assert 'dist/*.apk dist/*.json dist/SHA256SUMS.txt' in workflow, 'Release must contain security reports'
 # Ordinary PR/feature builds never hold release write credentials.
 assert 'contents: read' in qualification_workflow, 'Qualification must be read-only'

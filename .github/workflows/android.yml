@@ -30,6 +30,8 @@ jobs:
           python3 tools/check-theme-contrast.py
           python3 tools/test-verify-apk.py
           python3 tools/test-native-inventory.py
+          python3 tools/test_apk_signing.py
+          python3 tools/test_release_integrity.py
           python3 - <<'PYXML'
           from pathlib import Path
           from xml.etree import ElementTree as ET

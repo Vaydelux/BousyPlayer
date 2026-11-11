@@ -32,6 +32,15 @@ python3 tools/test-native-inventory.py
 python3 tools/native_inventory.py \
   --arm32 app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk \
   --arm64 app/build/outputs/apk/debug/app-arm64-v8a-debug.apk \
-  --version 0.31.0 \
+  --version 0.32.0 \
   --inventory app/build/reports/security/debug-native-inventory.json \
   --sbom app/build/reports/security/debug-native-file-sbom.cdx.json
+
+# Fail closed if APK signing fails or the two ABI packages are signed by
+# different certificates. This checks debug signing, not production identity.
+python3 tools/test_apk_signing.py
+python3 tools/apk_signing.py \
+  --arm32 app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk \
+  --arm64 app/build/outputs/apk/debug/app-arm64-v8a-debug.apk \
+  --report app/build/reports/security/debug-signing-report.json
+python3 tools/test_release_integrity.py
