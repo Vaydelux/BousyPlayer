@@ -53,6 +53,13 @@ fun main() {
     (overrideEngine.view as SurfaceView).holder.create()
     overrideFake.setSeekable(false)
     overrideFake.emitEvent(MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED)
+    // When native seekability changes after the last session snapshot, the
+    // adapter must reject the request rather than silently acknowledging it.
+    val beforeRejectedMpv = overrideFake.commands.count { it.firstOrNull() == "seek" }
+    check(runCatching { overrideEngine.seek(91_000L) }.isFailure &&
+        overrideFake.commands.count { it.firstOrNull() == "seek" } == beforeRejectedMpv) {
+        "libmpv silently accepted an unseekable user request"
+    }
     overrideFake.setSeekable(true)
     overrideEngine.seek(92_000L)
     android.os.Handler.drainDelayedOnce()
@@ -138,6 +145,13 @@ fun main() {
     seekVlc.load(uri, 82_000L, true)
     val seekNative = checkNotNull(MediaPlayer.last)
     (seekVlc.view as SurfaceView).holder.create()
+    seekNative.isSeekable = false
+    val beforeRejectedVlc = seekNative.time
+    check(runCatching { seekVlc.seek(91_000L) }.isFailure &&
+        seekNative.time == beforeRejectedVlc) {
+        "LibVLC silently accepted an unseekable user request"
+    }
+    seekNative.isSeekable = true
     seekVlc.seek(92_000L)
     seekNative.emit(MediaPlayer.Event.Playing)
     android.os.Handler.drainDelayedOnce()

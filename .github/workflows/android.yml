@@ -7,6 +7,11 @@ on:
 # Feature and PR builds never receive publishing credentials.
 permissions:
   contents: read
+# New commits supersede older same-branch work; keep independent push and PR
+# checks so the exact proposed SHA is still qualified in both contexts.
+concurrency:
+  group: bousyplayer-android-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   debug:
     runs-on: ubuntu-24.04

@@ -276,11 +276,11 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         if (!released && native.isPlaying) native.pause()
     }
     override fun seek(positionMs: Long) {
-        if (released || !native.isSeekable) return
+        if (released || !native.isSeekable) throw IllegalStateException("Seek unavailable")
         // Native resume retry runs on delayed callbacks. A successful user seek
         // supersedes the old saved resume, or the subsequent Playing event would
         // incorrectly jump back to the previous Continue Watching timestamp.
-        native.setTime(positionMs.coerceAtLeast(0))
+        native.setTime(positionMs.coerceAtLeast(0L))
         resumePosition = 0L
     }
     override fun speed(value: Float) { if (!released) native.rate = value }

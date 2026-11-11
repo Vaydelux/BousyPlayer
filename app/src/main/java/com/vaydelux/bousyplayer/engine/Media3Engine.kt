@@ -116,7 +116,12 @@ class Media3Engine(context: Context) : PlaybackEngine {
         native.playWhenReady = true
     }
     override fun pause() { native.playWhenReady = false }
-    override fun seek(positionMs: Long) { if (native.isCurrentMediaItemSeekable) native.seekTo(positionMs.coerceAtLeast(0)) }
+    override fun seek(positionMs: Long) {
+        // Session may have observed seekability 400ms ago; a live stream can
+        // become non-seekable between that snapshot and the user command.
+        if (!native.isCurrentMediaItemSeekable) throw IllegalStateException("Seek unavailable")
+        native.seekTo(positionMs.coerceAtLeast(0L))
+    }
     override fun speed(value: Float) { native.setPlaybackSpeed(value) }
     override fun aspect(value: AspectMode) {
         view.resizeMode = when (value) {

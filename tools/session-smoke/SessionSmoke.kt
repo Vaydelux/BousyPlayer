@@ -1103,5 +1103,38 @@ fun main() {
         staleStore.read().single().positionMs == 43_000L)
     staleSession.close()
 
+    // Session saw seekable=true in a previous snapshot, but the native adapter
+    // rejected the seek at command time. This must not display a fake target.
+    val rejectedSeekEngines = mutableListOf<FakeEngine>()
+    val rejectedSeekSource = media("seek-race.mp4")
+    val rejectedSeekStore = RecentStore().also {
+        it.update(rejectedSeekSource, 57_000L, 300_000L)
+    }
+    val rejectedSeek = PlayerSession(ctx, listOf(rejectedSeekSource), 0,
+        rejectedSeekStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(rejectedSeekEngines::add)
+    }
+    val rejectedSeekNative = rejectedSeekEngines.single()
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(
+        position = 57_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true
+    )
+    rejectedSeek.refresh()
+    rejectedSeekNative.failNextSeek = true
+    rejectedSeek.seekTo(112_000L)
+    verify("native rejection cannot create a fake pending seek",
+        rejectedSeek.seekDisplayPosition() == 57_000L &&
+        rejectedSeek.message == "Seek request failed. Try again or choose another engine." &&
+        rejectedSeekNative.seekCalls == 1 &&
+        rejectedSeek.playbackStatus.phase != PlaybackPhase.SEEKING)
+    verify("rejected seek cannot erase or advance Continue Watching",
+        rejectedSeekStore.read().single().positionMs == 57_000L)
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(canSeek = false)
+    rejectedSeek.refresh()
+    rejectedSeek.seekTo(112_000L)
+    verify("known non-seekable decoder avoids native seek command",
+        rejectedSeekNative.seekCalls == 1)
+    rejectedSeek.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

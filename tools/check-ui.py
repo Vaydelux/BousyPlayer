@@ -175,3 +175,14 @@ assert 'event == Lifecycle.Event.ON_START && session == null' in activitySourceV
 assert 'recents = recentsStore.readAccessible()' in activitySourceV31, 'SAF grant restoration must make history cards visible again'
 assert 'lifecycle.lifecycle.removeObserver(observer)' in activitySourceV31, 'Activity foreground history observer must be removed'
 print('PASS: background-to-home SAF permission refresh without irreversible history loss')
+
+media3 = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/Media3Engine.kt').read_text()
+mpv = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/MpvEngine.kt').read_text()
+vlc = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/VlcEngine.kt').read_text()
+for engineName, engineSource in [('Media3', media3), ('libmpv', mpv), ('LibVLC', vlc)]:
+    assert 'override fun seek(positionMs: Long)' in engineSource and 'throw IllegalStateException("Seek unavailable")' in engineSource, f'{engineName} must reject stale/unseekable seek commands'
+smokeSource = Path('tools/native-smoke/NativeSmoke.kt').read_text()
+assert 'libmpv silently accepted an unseekable user request' in smokeSource, 'Missing libmpv seek rejection regression'
+assert 'LibVLC silently accepted an unseekable user request' in smokeSource, 'Missing LibVLC seek rejection regression'
+assert 'native rejection cannot create a fake pending seek' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Missing session seek rejection case'
+print('PASS: all decoders reject unseekable seeks and preserve truthfulness of session progress')
