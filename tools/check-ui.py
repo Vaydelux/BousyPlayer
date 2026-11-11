@@ -67,3 +67,9 @@ probeCode = '\n'.join(line for line in resourceProbe.splitlines()
 assert 'uri' not in probeCode.lower() and 'https:' not in probeCode.lower(), 'resource probe must not retain URLs'
 assert 'readSymbolicLink' not in probeCode and 'readlink' not in probeCode, 'do not inspect descriptor targets'
 print('PASS: on-demand Android heap and descriptor-count sampling without media identifiers')
+
+assert 'ResourceTrendRecorder()' in source and 'Since first manual sample' in source, 'manual resource baseline/delta missing'
+assert 'not proof of a memory leak' in source, 'resource trend may not be presented as a leak verdict'
+trendPolicy = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlaybackPolicy.kt').read_text()
+assert 'class ResourceTrendRecorder' in trendPolicy and '1_024' in trendPolicy, 'resource trend must have bounded state'
+print('PASS: manual resource baseline/delta and no automatic leak verdict')

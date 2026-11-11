@@ -121,6 +121,20 @@ class PlaybackPolicyTest {
         assertTrue(recorder.summary.samples <= 4_096)
         assertFalse(recorder.summary.toString().contains("file://"))
     }
+    @Test fun resourceTrendTracksOnlyBoundedManualNumericDeltas() {
+        val recorder = ResourceTrendRecorder()
+        assertEquals(0L, recorder.record(ResourceObservation(20L, 30L, 5)).javaDeltaMiB)
+        val increase = recorder.record(ResourceObservation(32L, 44L, 8))
+        assertEquals(12L, increase.javaDeltaMiB)
+        assertEquals(14L, increase.nativeDeltaMiB)
+        assertEquals(3, increase.fdDelta)
+        repeat(10_000) { recorder.record(ResourceObservation(100L, 60L, 8)) }
+        assertEquals(1_024, recorder.record(ResourceObservation(200L, 90L, 9)).samples)
+        val notAvailable = ResourceTrendRecorder()
+        notAvailable.record(ResourceObservation(2L, 3L, null))
+        assertEquals(null, notAvailable.record(ResourceObservation(3L, 4L, 12)).fdDelta)
+        assertFalse(increase.toString().contains("content://"))
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))

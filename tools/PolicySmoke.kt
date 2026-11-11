@@ -76,6 +76,19 @@ fun main() {
         health.summary.longestBufferMs == 10_000L && health.summary.engineHandoffs == 1)
     checkNamed("health metrics exclude media paths or URLs",
         !health.summary.toString().contains("file://"))
+    val resources = ResourceTrendRecorder()
+    val baseline = resources.record(ResourceObservation(125L, 65L, 18))
+    val follow = resources.record(ResourceObservation(145L, 71L, 21))
+    checkNamed("resource baseline starts at zero delta",
+        baseline.samples == 1 && baseline.javaDeltaMiB == 0L &&
+        baseline.nativeDeltaMiB == 0L && baseline.fdDelta == 0)
+    checkNamed("manual resource samples report numerical deltas without retaining log entries",
+        follow.samples == 2 && follow.javaDeltaMiB == 20L &&
+        follow.nativeDeltaMiB == 6L && follow.fdDelta == 3)
+    val unknownFd = ResourceTrendRecorder()
+    unknownFd.record(ResourceObservation(5, 10, null))
+    checkNamed("resource trend handles missing FD visibility",
+        unknownFd.record(ResourceObservation(6, 11, 20)).fdDelta == null)
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))

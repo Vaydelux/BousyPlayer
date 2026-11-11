@@ -211,3 +211,37 @@ class PlaybackHealthRecorder {
     val summary: PlaybackHealth
         get() = PlaybackHealth(samples, bufferingSamples, errorEvents, engineHandoffs, longestBufferMs)
 }
+
+/**
+ * Constant-memory, manually sampled resource trend. A positive delta is not
+ * evidence of a leak: GC, decoder caching, and native allocations fluctuate.
+ * No filenames, process identity, media identifiers, or timestamps are saved.
+ */
+data class ResourceObservation(
+    val javaHeapMiB: Long, val nativeHeapMiB: Long, val openFds: Int?
+)
+data class ResourceTrend(
+    val samples: Int, val javaDeltaMiB: Long, val nativeDeltaMiB: Long, val fdDelta: Int?
+)
+class ResourceTrendRecorder {
+    private var baseline: ResourceObservation? = null
+    private var count = 0
+    fun record(observed: ResourceObservation): ResourceTrend {
+        val safe = ResourceObservation(
+            observed.javaHeapMiB.coerceIn(0L, 1_000_000L),
+            observed.nativeHeapMiB.coerceIn(0L, 1_000_000L),
+            observed.openFds?.coerceIn(0, 100_000)
+        )
+        if (baseline == null) baseline = safe
+        val first = checkNotNull(baseline)
+        count = (count + 1).coerceAtMost(1_024)
+        return ResourceTrend(
+            count,
+            safe.javaHeapMiB - first.javaHeapMiB,
+            safe.nativeHeapMiB - first.nativeHeapMiB,
+            if (safe.openFds != null && first.openFds != null) {
+                safe.openFds - first.openFds
+            } else null
+        )
+    }
+}

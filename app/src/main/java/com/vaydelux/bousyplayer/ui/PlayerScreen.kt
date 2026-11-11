@@ -43,6 +43,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
     var seekHint by remember(session) { mutableStateOf<String?>(null) }
     // On-demand only: avoids overhead in the 400ms player snapshot loop.
     var resourceSample by remember(session) { mutableStateOf<ResourceSample?>(null) }
+    val trendRecorder = remember(session) { ResourceTrendRecorder() }
+    var resourceTrend by remember(session) { mutableStateOf<ResourceTrend?>(null) }
     val menuFocus = remember { FocusRequester() }
     val queueFocus = remember { FocusRequester() }
     val queueListState = remember(session) { LazyListState(firstVisibleItemIndex = session.index) }
@@ -348,13 +350,27 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                             color = CinemaColor.muted,
                             style = MaterialTheme.typography.labelSmall)
                         ActionButton("Sample resource usage", {
-                            resourceSample = ResourceProbe.sample()
+                            val measured = ResourceProbe.sample()
+                            resourceSample = measured
+                            resourceTrend = trendRecorder.record(ResourceObservation(
+                                measured.javaHeapMiB, measured.nativeHeapMiB, measured.openFds))
                             activate()
                         }, modifier = Modifier.fillMaxWidth())
                         resourceSample?.let { usage ->
                             Text("App heap: ${usage.javaHeapMiB} MiB · " +
                                 "Native heap: ${usage.nativeHeapMiB} MiB · " +
                                 "Open FDs: ${usage.openFds?.toString() ?: "unavailable"}",
+                                color = CinemaColor.muted,
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                        resourceTrend?.let { trend ->
+                            Text("Since first manual sample (${trend.samples}): " +
+                                "Java ${trend.javaDeltaMiB} MiB · " +
+                                "Native ${trend.nativeDeltaMiB} MiB · " +
+                                "FDs ${trend.fdDelta?.toString() ?: "unavailable"}",
+                                color = CinemaColor.muted,
+                                style = MaterialTheme.typography.labelSmall)
+                            Text("Changes are observations, not proof of a memory leak.",
                                 color = CinemaColor.muted,
                                 style = MaterialTheme.typography.labelSmall)
                         }
