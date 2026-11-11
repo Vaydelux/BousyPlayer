@@ -46,6 +46,9 @@ class PlayerSession(
         private set
     private val retryGate = DecoderRetryGate()
     private var consecutiveSnapshotFailures = 0
+    // Once three consecutive status reads fail, only explicit Retry may rearm
+    // the decoder. A later successful poll cannot silently clear a fatal error.
+    private var snapshotFaultFatal = false
     private var totalSnapshotFailures = 0
     val playbackSnapshotFaults: Int get() = totalSnapshotFailures
     val consecutivePlaybackSnapshotFaults: Int get() = consecutiveSnapshotFailures
@@ -145,12 +148,41 @@ class PlayerSession(
         return resumePositionAcknowledged
     }
 
-    private fun latestPosition(): Long {
-        engine?.let { current ->
-            snapshot = runCatching { current.snapshot() }.getOrDefault(snapshot)
+    /**
+     * All status reads, including those made during an engine switch or app
+     * backgrounding, go through one failure policy. Never treat an unreadable
+     * snapshot as proof of EOF, seek acknowledgement, or codec startup failure.
+     */
+    private fun readDecoderSnapshot(active: PlaybackEngine): Boolean {
+        if (snapshotFaultFatal) return false
+        return try {
+            snapshot = active.snapshot()
+            consecutiveSnapshotFailures = 0
+            true
+        } catch (_: Exception) {
+            consecutiveSnapshotFailures =
+                DecoderSnapshotFailurePolicy.nextConsecutive(consecutiveSnapshotFailures)
+            totalSnapshotFailures = (totalSnapshotFailures + 1).coerceAtMost(999)
+            val fatal = DecoderSnapshotFailurePolicy.isFatal(consecutiveSnapshotFailures)
+            snapshotFaultFatal = fatal
+            // Preserve the last trusted timestamp, but quarantine stale controls
+            // and EOF. Do not erase an earlier real engine error during a transient.
+            snapshot = snapshot.copy(isPlaying = false, canSeek = false,
+                ended = false, tracks = emptyList(), loading = !fatal,
+                error = if (fatal) "Playback state unavailable" else snapshot.error)
+            false
         }
-        return if (acknowledgePosition(snapshot)) snapshot.position.coerceAtLeast(0L)
-        else lastAttemptedPositionMs
+    }
+
+    private fun latestPosition(): Long {
+        val readable = engine?.let(::readDecoderSnapshot) ?: false
+        return if (readable && acknowledgePosition(snapshot)) {
+            snapshot.position.coerceAtLeast(0L)
+        } else if (!resumePositionAcknowledged || pendingSeekToStart) {
+            lastAttemptedPositionMs
+        } else {
+            snapshot.position.coerceAtLeast(0L)
+        }
     }
 
     val source: MediaSource get() = playlist[index]
@@ -192,6 +224,7 @@ class PlayerSession(
         phaseTracker.reset()
         playbackStatus = PlaybackPhaseReport(PlaybackPhase.STARTING)
         consecutiveSnapshotFailures = 0
+        snapshotFaultFatal = false
         engineEverReady = false
         nativeStartupAtMs = clockMs()
         val last = recents.read().firstOrNull { it.source.uri == source.uri }
@@ -258,21 +291,7 @@ class PlayerSession(
 
     fun refresh() {
         if (closed) return
-        engine?.let { active ->
-            snapshot = try {
-                active.snapshot().also { consecutiveSnapshotFailures = 0 }
-            } catch (_: Exception) {
-                consecutiveSnapshotFailures =
-                    DecoderSnapshotFailurePolicy.nextConsecutive(consecutiveSnapshotFailures)
-                totalSnapshotFailures = (totalSnapshotFailures + 1).coerceAtMost(999)
-                val fatal = DecoderSnapshotFailurePolicy.isFatal(consecutiveSnapshotFailures)
-                // The stale isPlaying/track values cannot authorize controls,
-                // but an intermittent read failure must not immediately
-                // interrupt the playing decoder or allocate a replacement.
-                snapshot.copy(isPlaying = false, canSeek = false, tracks = emptyList(),
-                    loading = !fatal, error = if (fatal) "Playback state unavailable" else null)
-            }
-        }
+        val snapshotReadable = engine?.let(::readDecoderSnapshot) ?: true
         healthRecorder.sample(
             buffering = snapshot.loading && wantsPlay && !suspendedByFocus && snapshot.error == null,
             error = snapshot.error != null, nowMs = clockMs()
@@ -295,6 +314,18 @@ class PlayerSession(
             seekPending = !resumePositionAcknowledged || pendingSeekToStart,
             nowMs = clockMs()
         ))
+        // Status-read failures cannot be interpreted as codec failures,
+        // completion, or confirmed timeline progress. In particular, a fatal
+        // snapshot fault must not trigger automatic MPV/Matroska handoff.
+        if (!snapshotReadable || snapshotFaultFatal) {
+            if (snapshotFaultFatal) {
+                if (wantsPlay) runCatching { engine?.pause() }
+                wantsPlay = false
+                suspendedByFocus = false
+                audioFocus.abandon()
+            }
+            return
+        }
         // A saved resume can make Media3 expose position=1:04 before it has
         // rendered a single frame. A nonzero *buffering* timestamp must not
         // disable startup recovery. Require actual Play, EOF, or a ready
@@ -580,7 +611,8 @@ class PlayerSession(
     }
 
     private fun saveProgress() {
-        if (!source.isDocument || snapshot.duration <= 0L || snapshot.position < 0L ||
+        if (!source.isDocument || consecutiveSnapshotFailures > 0 || snapshotFaultFatal ||
+            snapshot.duration <= 0L || snapshot.position < 0L ||
             !acknowledgePosition(snapshot)) return
         if (index == lastSavedIndex &&
             (if (snapshot.ended) snapshot.duration else snapshot.position) == lastSavedPosition
@@ -616,6 +648,7 @@ class PlayerSession(
         val old = engine
         engine = null
         consecutiveSnapshotFailures = 0
+        snapshotFaultFatal = false
         runCatching { old?.release() }
         audioFocus.abandon()
         wantsPlay = false

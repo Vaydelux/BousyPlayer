@@ -1,8 +1,8 @@
-# Bousy Player v0.24 — Android TV / phone / tablet
+# Bousy Player v0.25 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.23 passed [GitHub Actions #25](https://github.com/Vaydelux/BousyPlayer/actions/runs/43036121213), with 108 playback-session checks, native adapter simulations, Android unit tests and lint, and verified ARM32/ARM64 APKs. v0.24 fixes failed-startup decoder ownership and adds a bounded, private decoder-status read recovery policy; a new green CI run is required to qualify v0.24. Android device playback and instrumented test execution remain outstanding.
+> **Qualification status:** v0.24 passed [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580), including playback-session and native-adapter regressions, Android unit tests, lint and ARM32/ARM64 APK validation. v0.25 adds latched decoder-status fault handling and switch-time read protection; v0.25 remains unqualified until its own CI run passes. Physical codec playback, D-pad controls and instrumented tests have not been executed on devices.
 
 ## v0.13 core hardening
 
@@ -97,6 +97,13 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Privacy-safe local diagnostics:** The Options drawer shows bounded total and consecutive snapshot read faults, without exception text, media URI, stream credential, filename, logs or network transmission. Counts reset their consecutive portion when a new decoder is constructed.
 - **Regression coverage:** Mandatory JVM PlayerSession fake tests cover initial status read failure, single-release ownership, two transient exceptions, successful recovery and controlled fatal behavior after three failures followed by explicit Retry. New Android instrumentation sources cover failed-first-snapshot ownership and transient recovery using a fake decoder; these tests are compiled in CI, **not executed** on a connected device.
 - **Release gate:** Android lint, unit/session/native adapter tests, per-ABI debug APK ZIP/ELF validation and SHA256 checksums still gate each prerelease. Real-world MKV/TS decoder compatibility, device lifecycle, and long-session ARM32 behavior remain unverified.
+
+## v0.25 — Decoder status integrity (pending CI)
+
+- **No phantom codec fallback:** Three consecutive native status-read exceptions are a playback-health failure, not evidence that MPV or Media3 cannot decode the file. The session no longer switches to another engine because of synthetic status errors.
+- **Explicit recovery boundary:** The third consecutive failure pauses and disarms playback. The error remains latched even if a later background poll would succeed; a user-initiated Retry or engine change constructs a fresh decoder.
+- **One guarded status-read path:** Timeline reads during switching and lifecycle cleanup now share the same capped failure counter used by regular refresh polls. Failed reads cannot confirm pending seeks, imply EOF, authorize stale controls, or overwrite Continue Watching.
+- **New regression coverage:** JVM real-session smoke cases verify MPV/MKV no-handoff behavior, stable fatal state, manual Retry, preserved MKV resume position and switch-time read diagnostics. On-device decoding and remote behavior remain unverified.
 
 ## Current source capabilities
 
