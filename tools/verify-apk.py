@@ -1,36 +1,49 @@
 #!/usr/bin/env python3
-"""Only claim a debug APK exists after Android Gradle produced real bytes.
-
-Checks ZIP integrity, DEX, native ELF presence for both requested ARM ABIs. It is
-NOT an install test and cannot certify ABI compatibility or codec behavior.
-"""
-from pathlib import Path
+"""Statically qualify one ABI-specific APK; does not certify device playback."""
 import sys
 import zipfile
+from pathlib import Path
 
-if len(sys.argv) != 2:
-    print('Usage: python3 tools/verify-apk.py <app-debug.apk>', file=sys.stderr)
-    sys.exit(2)
-apk = Path(sys.argv[1])
-if not apk.is_file() or apk.stat().st_size == 0:
-    print(f'FAIL: missing/nonempty APK: {apk}', file=sys.stderr)
-    sys.exit(1)
-with zipfile.ZipFile(apk) as z:
-    bad = z.testzip()
-    if bad:
-        raise SystemExit(f'FAIL: corrupt APK entry {bad}')
-    entries = set(z.namelist())
-    for required in ('AndroidManifest.xml', 'classes.dex'):
-        if required not in entries:
-            raise SystemExit(f'FAIL: missing {required}')
-    for abi in ('armeabi-v7a', 'arm64-v8a'):
-        libs = [x for x in entries if x.startswith(f'lib/{abi}/') and x.endswith('.so')]
-        for engine in ('mpv', 'vlc'):
-            matches = [x for x in libs if engine in x.lower()]
-            if not matches:
-                raise SystemExit(f'FAIL: {engine} missing for {abi}')
-            if not any(z.open(x).read(4) == b'\x7fELF' for x in matches):
-                raise SystemExit(f'FAIL: {engine} {abi} is not an ELF binary')
-        print(f'PASS: {abi} has native mpv and VLC ELF objects')
-    print(f'PASS: APK archive integrity and mandatory entries ({apk.stat().st_size:,} bytes)')
-print('NOTE: device playback, native loading and C++ ABI interoperability remain unverified')
+ARCH = {"armeabi-v7a": (1, 40), "arm64-v8a": (2, 183)}
+
+def verify(abi: str, filename: str) -> None:
+    if abi not in ARCH:
+        raise ValueError(f"Unsupported expected ABI: {abi}")
+    path = Path(filename)
+    if not path.is_file() or not path.stat().st_size:
+        raise ValueError(f"Missing or empty APK: {path}")
+    with zipfile.ZipFile(path) as z:
+        corrupt = z.testzip()
+        if corrupt:
+            raise ValueError(f"Corrupt APK ZIP member: {corrupt}")
+        names = set(z.namelist())
+        required = {"AndroidManifest.xml", "classes.dex"}
+        if not required.issubset(names):
+            raise ValueError(f"Missing APK entries: {sorted(required - names)}")
+        libs = sorted(n for n in names if n.startswith("lib/") and n.endswith(".so"))
+        found = {n.split("/")[1] for n in libs}
+        if found != {abi}:
+            raise ValueError(f"Expected exactly {abi} native ABI, found {sorted(found)}")
+        expected_class, expected_machine = ARCH[abi]
+        for lib in libs:
+            with z.open(lib) as binary:
+                header = binary.read(20)
+            if len(header) < 20 or header[:4] != b"\x7fELF":
+                raise ValueError(f"Not an ELF shared library: {lib}")
+            if header[4] != expected_class or header[5] != 1:
+                raise ValueError(f"Wrong ELF class/endianness for {abi}: {lib}")
+            if int.from_bytes(header[18:20], "little") != expected_machine:
+                raise ValueError(f"Wrong ELF architecture for {abi}: {lib}")
+        for token in ("mpv", "vlc"):
+            if not any(token in name.lower() for name in libs):
+                raise ValueError(f"Missing native {token} library for {abi}")
+    print(f"PASS: {path.name} — {abi}, {len(libs)} native ELF libraries, {path.stat().st_size:,} bytes")
+    print("NOTE: JNI loading, codec playback, TV remote behavior and memory are not device-verified")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("Usage: python3 tools/verify-apk.py <armeabi-v7a|arm64-v8a> <APK>")
+    try:
+        verify(sys.argv[1], sys.argv[2])
+    except (ValueError, zipfile.BadZipFile, OSError) as exc:
+        sys.exit(f"FAIL: {exc}")

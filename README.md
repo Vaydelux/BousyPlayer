@@ -1,8 +1,8 @@
-# Bousy Player v0.11 — Android TV / phone / tablet
+# Bousy Player v0.12 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status: source prototype, not a tested APK.** This archive was checked with Kotlin CLI tests against local stubs, not Android Gradle or real native decoders. It has **not** been built, installed, or physically tested. There is no included debug APK. Details are in `docs/PROGRESS_2026-11-11-v0.11.md`.
+> **Qualification status:** v0.11 compiled and passed Android unit tests, lint, APK assembly and ARM32/ARM64 native ELF checks in [CI build #8](https://github.com/Vaydelux/BousyPlayer/actions/runs/42982351716). v0.12 introduces **separate ARM32 and ARM64 debug APKs**; those require a passing v0.12 CI run. Physical Android TV and phone playback is not yet tested.
 
 ## Current source capabilities
 
@@ -52,36 +52,22 @@ export ANDROID_HOME=/path/to/Android/Sdk
 bash tools/build-and-qualify.sh
 ```
 
-The build script runs `testDebugUnitTest lintDebug assembleDebug` and then checks actual debug APK ZIP/DEX, and MPV/VLC ELF objects for `arm64-v8a` and `armeabi-v7a`. The check does **not** demonstrate installation, playback, or native runtime load compatibility.
+The build script runs `testDebugUnitTest lintDebug assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The `.github/workflows/android.yml` CI can run in a dedicated GitHub repository containing these files at its root. It uploads the debug APK only after successful checks and uploads diagnostic reports when compilation or lint fails. **No workflow run has occurred for this source delivery.**
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.12 results.
 
 ## Scope / known limitations
 
 - Native codecs can fail on individual devices, networks, hardware decoders, DRM-protected files and broken or non-indexed containers; "all formats" is a compatibility goal, not a guarantee.
 - Android TV devices without a working system document provider may require a dedicated MediaStore/USB file browser in a future milestone.
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
-- Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and true end-to-end Android build remain to be completed.
+- Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.11 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.12 progress report.
 
-## Publish as a standalone GitHub repository
+## Repository and downloads
 
-The package includes `tools/publish-to-github.sh` (macOS/Linux/WSL) and `tools/publish-to-github.ps1` (Windows PowerShell) for use on a computer with `git`, GitHub CLI (`gh`), and an authenticated Vaydelux account. It creates **only** `Vaydelux/BousyPlayer`; it refuses to overwrite an existing repository and does not touch `Vaydelux/Bousygram`.
-
-```bash
-# Extract this archive and open a terminal inside the BousyPlayer folder.
-gh auth login
-bash tools/publish-to-github.sh
-```
-
-After a successful push, open the repository's Actions tab to view the `Android debug qualification` run. It has not been executed as part of this delivery. The CLI script requires a configured Git author identity (`git config user.name`/`user.email`) and sufficient permissions to create repositories.
-
-On Windows PowerShell, inside the extracted `BousyPlayer` directory:
-
-```powershell
-gh auth login
-.\tools\publish-to-github.ps1
-```
-
-The scripts deliberately refuse to overwrite an existing `Vaydelux/BousyPlayer` repository. The default repository visibility in the publishing commands is **public**; review source and adjust to `--private` first if needed.
+- Repository: [Vaydelux/BousyPlayer](https://github.com/Vaydelux/BousyPlayer) (private, main branch).
+- Debug APKs: [GitHub prereleases](https://github.com/Vaydelux/BousyPlayer/releases). Select `armeabi-v7a` for a 32-bit ARM TV or `arm64-v8a` for a 64-bit ARM device. Android ABI is not always the same as the CPU's advertised 64-bit capability.
+- Latest source changes and CI checks: [GitHub Actions](https://github.com/Vaydelux/BousyPlayer/actions).
+- Device qualification is still pending; no universal codec-support claim.

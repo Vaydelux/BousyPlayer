@@ -25,6 +25,7 @@ jobs:
           python3 tools/check-release-metadata.py
           python3 tools/check-manifest.py
           python3 tools/check-ui.py
+          python3 tools/test-verify-apk.py
           python3 - <<'PYXML'
           from pathlib import Path
           from xml.etree import ElementTree as ET
@@ -53,18 +54,22 @@ jobs:
         run: bash tools/build-and-qualify.sh
       # Store passing debug APKs as private-repository prerelease assets.
       # Actions artifact storage is currently quota-limited on this account.
-      - name: Publish validated debug APK as prerelease
+      - name: Publish ARM32 and ARM64 debug APKs as prerelease
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="debug-v0.11-${GITHUB_SHA:0:8}"
-          gh release create "$tag" \
-            "app/build/outputs/apk/debug/app-debug.apk#BousyPlayer-v0.11-debug.apk" \
+          tag="debug-v0.12-${GITHUB_SHA:0:8}"
+          mkdir -p dist
+          for abi in armeabi-v7a arm64-v8a; do
+            cp "app/build/outputs/apk/debug/app-$abi-debug.apk" \
+               "dist/BousyPlayer-v0.12-$abi-debug.apk"
+          done
+          gh release create "$tag" dist/*.apk \
             --target "$GITHUB_SHA" \
-            --title "Bousy Player v0.11 CI Debug (${GITHUB_SHA:0:8})" \
-            --notes "Automatically built and statically verified debug APK. Not yet hardware-tested; not a production release." \
+            --title "Bousy Player v0.12 ABI Debug (${GITHUB_SHA:0:8})" \
+            --notes "ARM32 and ARM64 APKs. Gradle compilation, unit tests, Android lint, ZIP and ELF architecture checks passed. Native playback and remote controls are not yet hardware-verified." \
             --prerelease
 
       # Print diagnostics to the job log instead of uploading quota-limited artifacts.

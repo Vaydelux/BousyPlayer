@@ -15,4 +15,6 @@ if [[ -z "$ANDROID_HOME" && ! -f local.properties ]]; then
   exit 127
 fi
 "${runner[@]}" --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
-python3 tools/verify-apk.py app/build/outputs/apk/debug/app-debug.apk
+for abi in armeabi-v7a arm64-v8a; do
+  python3 tools/verify-apk.py "$abi" "app/build/outputs/apk/debug/app-$abi-debug.apk"
+done
