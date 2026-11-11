@@ -27,3 +27,11 @@ python3 tools/supply_chain.py --sbom app/build/reports/security/debug-maven-sbom
 for abi in armeabi-v7a arm64-v8a; do
   python3 tools/verify-apk.py "$abi" "app/build/outputs/apk/debug/app-$abi-debug.apk"
 done
+# Verify actual ELF payloads and compare the shipped ARM32 and ARM64 library sets.
+python3 tools/test-native-inventory.py
+python3 tools/native_inventory.py \
+  --arm32 app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk \
+  --arm64 app/build/outputs/apk/debug/app-arm64-v8a-debug.apk \
+  --version 0.28.0 \
+  --inventory app/build/reports/security/debug-native-inventory.json \
+  --sbom app/build/reports/security/debug-native-file-sbom.cdx.json

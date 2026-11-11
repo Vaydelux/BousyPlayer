@@ -1,6 +1,6 @@
-# Bousy Player v0.27 — Qualification gates
+# Bousy Player v0.28 — Qualification gates
 
-Scope: BousyPlayer private repository. v0.27 inventories resolved Maven dependencies and gates APK publication on OSV advisories, with bounded offline regression tests. Native C/C++ binaries, device playback and signing are unverified. This is **not** certification.
+Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objects in both ABI APKs and blocks executable stacks, writable/executable segments, text relocations, and cross-ABI mismatches. It does NOT determine native upstream versions or CVE status, device playback or production signing.
 
 | Gate | Evidence and status |
 |---|---|
@@ -19,7 +19,8 @@ Scope: BousyPlayer private repository. v0.27 inventories resolved Maven dependen
 | v0.24 decoder ownership, transient snapshot fault tolerance | PASS: [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580) |
 | v0.25 latched snapshot failure and no false engine fallback | PASS: [GitHub Actions #32](https://github.com/Vaydelux/BousyPlayer/actions/runs/43047420473) |
 | v0.26 privacy controls, URL validation and isolated CI release | PASS: [main release #1](https://github.com/Vaydelux/BousyPlayer/actions/runs/43066908229) |
-| v0.27 CycloneDX Maven inventory and fail-closed OSV | PENDING v0.27 qualification; native libs excluded |
+| v0.27 CycloneDX Maven inventory and fail-closed OSV | PASS: [main release #2](https://github.com/Vaydelux/BousyPlayer/actions/runs/43070243504) |
+| v0.28 shipped ELF hashes/Build IDs, hardening checks, native file SBOM | PENDING v0.28 CI and main prerelease |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -64,3 +65,7 @@ PR/feature branch Android qualification is read-only. Main-branch APK publishing
 The Gradle debug classpath is resolved to Maven module versions and exported as a CycloneDX 1.5 SBOM. An OSV querybatch scan includes pagination handling and fails closed on unavailable/incomplete scans or known advisories. Both reports and APKs are covered by release checksums. It is deliberately *not* an SBOM of all embedded native binaries, Gradle plugins, build tooling, or Android platform components. License, transitive native CVE, source provenance and release-signing evidence are outstanding.
 
 The first v0.27 scan correctly **failed** on the Guava `33.3.1-android` advisory `GHSA-xxph-c9ww-hj94`. A patched `33.7.2-android` transitive version constraint was added. Do not interpret the earlier failing run as a qualified release; a fresh clean build and scan are required.
+
+## v0.28 security verification
+
+`tools/native_inventory.py` verifies every packaged ELF shared object directly from both debug APKs, rejecting invalid ABI/type/endianness, duplicate or asymmetric libraries, executable stack, RWX loads and text relocations. Outputs per-ABI SHA-256, GNU Build ID, DT_NEEDED, RELRO metadata and a CycloneDX file SBOM. `tools/test-native-inventory.py` exercises both ELF classes and negative hardening fixtures. Neither automation certifies native library CVE status, reproducibility or Android runtime behavior.
