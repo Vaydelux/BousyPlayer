@@ -361,7 +361,7 @@ class PlaybackPhaseTracker(private val seekWarningMs: Long = 12_000L) {
     }
 
     fun observe(input: PlaybackPhaseInput): PlaybackPhaseReport {
-        if (input.isPlaying && !input.hasError) hasPlayed = true
+        if (input.isPlaying && !input.loading && !input.hasError) hasPlayed = true
         if (!input.seekPending) explicitSeekStartedMs = null
         val pendingAt = explicitSeekStartedMs
         val phase = when {
