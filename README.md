@@ -1,8 +1,8 @@
-# Bousy Player v0.29 — Android TV / phone / tablet
+# Bousy Player v0.30 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.28 passed [GitHub Actions main release workflow #3](https://github.com/Vaydelux/BousyPlayer/actions/runs/43076247076), including both APKs, security reports, Maven OSV and native ELF checks. v0.29 introduces four shared persistent themes, adaptive phone/TV recovery controls and user-initiated recovery for prolonged buffering. Its own CI and physical-device playback qualification remain pending.
+> **Qualification status:** v0.29 passed [main release workflow #4](https://github.com/Vaydelux/BousyPlayer/actions/runs/43080232006) and published split ARM32/ARM64 debug APKs, Maven and native-file SBOMs and security reports. v0.30 adds fail-safe native transport error handling and explicit rebuffer recovery revalidation; its own CI and real-device tests remain pending.
 
 ## v0.13 core hardening
 
@@ -138,6 +138,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 
 - **Contrast-qualified semantic colors:** CI checks 28 static text/label/accent color combinations across all four palettes against a 4.5:1 contrast threshold; persisted theme identifier round-tripping has Android JVM unit coverage. Actual video overlays, TalkBack and enlarged-font layout still need on-device testing.
 
+## v0.30 — Transport command fail-safe and stricter retry controls
+
+- **Audio/decoder control exceptions:** Native Play/Pause calls, including audio-focus interruption/recovery, can throw even when the previous status was readable. Instead of silently swallowing them, the session now releases the possibly audible decoder, abandons focus, disarms autoplay intent and reports a stable, privacy-safe error. Only an explicit Retry may allocate a new native decoder.
+- **Playback position continuity:** A failed command saves only the last trusted local timeline before teardown. Retry reopens the source at the saved/resume position; no media URLs, filenames or exception messages are placed into support diagnostics.
+- **No zombie restarts from stale UI:** The v0.29 rebuffer recovery button now calls a session-level method that revalidates continuous REBUFFERING, the 15-second threshold, active Play intent, no fatal error and no focus suspension **at tap time**. A button left visible after Pause cannot restart a decoder.
+- **Seek failure feedback:** A rejected native seek now provides neutral guidance while preserving the existing seek/resume checkpoint, instead of silently swallowing the failure.
+- **Regression verification:** Fail-injected JVM session tests cover thrown Play/Pause commands, audio-focus gain failures, recovered positions and stale/manual rebuffer actions. Existing Android/native/OSV/ELF gates remain mandatory.
+
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -188,7 +197,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.29 qualification results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.30 qualification results.
 
 ## Scope / known limitations
 
