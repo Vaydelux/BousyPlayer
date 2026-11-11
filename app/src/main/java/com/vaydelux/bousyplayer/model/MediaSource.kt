@@ -65,6 +65,13 @@ object HistoryPolicy {
             parsed.rawUserInfo == null && parsed.rawFragment == null
     }
 
+    /**
+     * A failed Android permission enumeration is unknown (null), not denial.
+     * A missing grant hides the card without erasing user progress from disk.
+     */
+    fun isVisibleWithReadGrant(uri: String, readGrants: Set<String>?): Boolean =
+        readGrants == null || uri in readGrants
+
     fun safeTitle(value: String): String =
         value.asSequence().filterNot { char ->
             char.code < 32 || char.code == 127 ||

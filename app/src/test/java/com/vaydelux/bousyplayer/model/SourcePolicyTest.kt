@@ -31,6 +31,13 @@ class SourcePolicyTest {
         assertEquals(HistoryPolicy.MAX_DURATION_MS,
             HistoryPolicy.safePosition(Long.MAX_VALUE, Long.MAX_VALUE))
     }
+    @Test fun safGrantVisibilityNeverMistakesMissingPermissionsForDeletion() {
+        val uri = "content://provider/video/1"
+        assertTrue(HistoryPolicy.isVisibleWithReadGrant(uri, null))
+        assertFalse(HistoryPolicy.isVisibleWithReadGrant(uri, emptySet()))
+        assertFalse(HistoryPolicy.isVisibleWithReadGrant(uri, setOf("content://provider/other")))
+        assertTrue(HistoryPolicy.isVisibleWithReadGrant(uri, setOf(uri)))
+    }
     @Test fun seekClampsToKnownBounds() {
         assertEquals(0, SourcePolicy.clampSeek(-10, 1000))
         assertEquals(1000, SourcePolicy.clampSeek(1500, 1000))
