@@ -150,4 +150,100 @@ fun main() {
     }
     println("PASS: LibVLC manual seek supersedes delayed saved resume")
 
+    // Hammer Android's SurfaceHolder lifecycle without starting multiple
+    // video renderers, retaining a stale output or reopening the video.
+    val beforeSurfaceLoop = ParcelFileDescriptor.activeCount
+    val surfaceMpv = MpvEngine(context)
+    val loopMpvNative = checkNotNull(MPVLib.last)
+    surfaceMpv.load(uri, 25_000L, false)
+    val loopMpvView = surfaceMpv.view as SurfaceView
+    loopMpvView.holder.create()
+    loopMpvView.holder.create()
+    check(loopMpvNative.attachCount == 1) { "duplicate mpv surfaceCreated called native attach twice" }
+    repeat(20) {
+        loopMpvView.holder.destroy()
+        loopMpvView.holder.create()
+        loopMpvView.holder.create()
+    }
+    check(loopMpvNative.attachCount == 21 &&
+        loopMpvNative.commands.count { it.firstOrNull() == "loadfile" } == 1 &&
+        !loopMpvNative.destroyed) {
+        "rapid mpv reattachment leaked or restarted native decoding"
+    }
+    surfaceMpv.release()
+    loopMpvView.holder.create()
+    check(loopMpvNative.attachCount == 21 && loopMpvNative.destroyCount == 1 &&
+        !loopMpvView.keepScreenOn &&
+        ParcelFileDescriptor.activeCount == beforeSurfaceLoop) {
+        "mpv reacted to surface callback after release or retained document descriptor"
+    }
+    println("PASS: repeated mpv surface recreation, idempotent native attachment and cleanup")
+
+    val beforeVlcSurfaces = ParcelFileDescriptor.activeCount
+    val surfaceVlc = VlcEngine(context)
+    val loopVlcNative = checkNotNull(MediaPlayer.last)
+    surfaceVlc.load(uri, 35_000L, false)
+    val loopVlcView = surfaceVlc.view as SurfaceView
+    loopVlcView.holder.create()
+    loopVlcView.holder.create()
+    check(loopVlcNative.vlcVout.attachCount == 1 && loopVlcNative.playCount == 0) {
+        "VLC attached duplicate surfaces or started video while paused"
+    }
+    repeat(20) {
+        loopVlcView.holder.destroy()
+        loopVlcView.width = 1280 + it
+        loopVlcView.height = 720 + it
+        loopVlcView.holder.create()
+        loopVlcView.holder.create()
+    }
+    check(loopVlcNative.vlcVout.attachCount == 21 &&
+        loopVlcNative.vlcVout.windowWidth == 1299 &&
+        loopVlcNative.vlcVout.windowHeight == 739 &&
+        loopVlcNative.playCount == 0) {
+        "VLC surface recreation double-attached, retained stale dimensions or overrode Pause"
+    }
+    surfaceVlc.release()
+    loopVlcView.holder.create()
+    check(loopVlcNative.vlcVout.attachCount == 21 &&
+        loopVlcNative.releaseCount == 1 && !loopVlcView.keepScreenOn &&
+        ParcelFileDescriptor.activeCount == beforeVlcSurfaces) {
+        "VLC retained native output or SAF handle after release"
+    }
+    println("PASS: repeated VLC surface recreation, window size and Pause preservation")
+
+    val failedAttachMpv = MpvEngine(context)
+    val failedAttachMpvNative = checkNotNull(MPVLib.last)
+    failedAttachMpv.load(uri, 0L, false)
+    failedAttachMpvNative.failNextAttach = true
+    val failedMpvView = failedAttachMpv.view as SurfaceView
+    failedMpvView.holder.create()
+    check(failedAttachMpv.snapshot().error != null && failedAttachMpvNative.attachCount == 0) {
+        "mpv did not surface a failed native attach"
+    }
+    failedMpvView.holder.create()
+    check(failedAttachMpv.snapshot().error == null && failedAttachMpvNative.attachCount == 1) {
+        "mpv did not recover from a transient surface failure"
+    }
+    failedAttachMpv.release()
+
+    val failedAttachVlc = VlcEngine(context)
+    val failedAttachVlcNative = checkNotNull(MediaPlayer.last)
+    failedAttachVlc.load(uri, 0L, false)
+    failedAttachVlcNative.vlcVout.failNextAttach = true
+    val failedVlcView = failedAttachVlc.view as SurfaceView
+    failedVlcView.holder.create()
+    check(failedAttachVlc.snapshot().error != null && failedAttachVlcNative.vlcVout.attachCount == 0) {
+        "VLC did not report a failed native video attach"
+    }
+    failedVlcView.holder.create()
+    check(failedAttachVlc.snapshot().error == null &&
+        failedAttachVlcNative.vlcVout.attachCount == 1) {
+        "VLC failed to recover from a transient native attach failure"
+    }
+    failedAttachVlc.release()
+    check(ParcelFileDescriptor.activeCount == beforeVlcSurfaces) {
+        "a failed-then-restored surface leaked an SAF descriptor"
+    }
+    println("PASS: transient mpv/VLC surface faults recover without leaving stale errors or leaking FDs")
+
 }

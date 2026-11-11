@@ -64,6 +64,9 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
                 runCatching {
                     native.attachSurface(holder.surface)
                     surfaceAttached = true
+                    if (errorMessage == "libmpv video surface could not be attached") {
+                        errorMessage = null
+                    }
                     startPendingMedia()
                 }.onFailure { errorMessage = "libmpv video surface could not be attached" }
             }

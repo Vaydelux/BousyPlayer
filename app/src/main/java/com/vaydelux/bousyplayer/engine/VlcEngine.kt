@@ -50,6 +50,9 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
                     surfaceHeight = height.coerceAtLeast(1)
                     native.vlcVout.setWindowSize(surfaceWidth, surfaceHeight)
                     applyAspect()
+                    if (errorMessage == "LibVLC cannot attach video output") {
+                        errorMessage = null
+                    }
                     // The Activity creates the SurfaceView after PlayerSession.load().
                     // Don't start decoding before VLC has a video output surface.
                     if (PlaybackPolicy.canStartNative(requestedPlay, mediaConfigured, attached) &&

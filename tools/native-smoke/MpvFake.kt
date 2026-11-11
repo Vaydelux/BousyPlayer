@@ -32,6 +32,7 @@ class MPVLib {
     var destroyed = false
     var destroyCount = 0
     var surfaceReady = false
+    var failNextAttach = false
     var attachCount = 0
     var detachCount = 0
     private val bools = mutableMapOf<String,Boolean>()
@@ -58,7 +59,14 @@ class MPVLib {
     fun setPropertyDouble(name: String, value: Double) { doubleProperties[name] = value }
     fun setPropertyInt(name: String, value: Int) {}
     fun setPropertyString(name: String, value: String) { stringProperties[name] = value }
-    fun attachSurface(surface: Surface) { surfaceReady = true; attachCount++ }
+    fun attachSurface(surface: Surface) {
+        if (failNextAttach) {
+            failNextAttach = false
+            throw IllegalStateException("synthetic mpv video attach failure")
+        }
+        surfaceReady = true
+        attachCount++
+    }
     fun detachSurface() { surfaceReady = false; detachCount++ }
     fun destroy() { destroyed = true; destroyCount++ }
 }
