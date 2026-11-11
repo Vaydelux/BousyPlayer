@@ -1092,9 +1092,15 @@ fun main() {
         staleStore.read().single().positionMs == 40_000L)
     staleNative.current = staleNative.current.copy(position = 43_000L)
     staleSession.refresh()
-    verify("fresh native seek acknowledgement resumes position persistence",
-        staleStore.read().single().positionMs == 43_000L &&
+    verify("fresh readable decoder status acknowledges the pending seek",
+        staleSession.seekDisplayPosition() == 43_000L &&
+        staleSession.playbackStatus.phase == PlaybackPhase.PLAYING &&
         staleSession.consecutivePlaybackSnapshotFaults == 0)
+    // Small movements (<5s) use bounded periodic persistence. Explicit Pause
+    // must commit the acknowledged target, not the pre-seek checkpoint.
+    staleSession.pause()
+    verify("confirmed small backward or forward seek persists on explicit Pause",
+        staleStore.read().single().positionMs == 43_000L)
     staleSession.close()
 
     println("PASS: $counter session ownership/behavior checks")
