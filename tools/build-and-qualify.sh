@@ -18,6 +18,12 @@ fi
 "${runner[@]}" --no-daemon --stacktrace \
   :session-smoke:run :native-smoke:run \
   :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+# Enumerate actual resolved Maven versions and scan known OSV advisories.
+# On network/scan failure or known vulnerability, do not publish a debug APK.
+"${runner[@]}" --no-daemon :app:generateDebugSbom
+python3 tools/test_supply_chain.py
+python3 tools/supply_chain.py --sbom app/build/reports/security/debug-maven-sbom.cdx.json \
+  --report app/build/reports/security/osv-findings.json --enforce
 for abi in armeabi-v7a arm64-v8a; do
   python3 tools/verify-apk.py "$abi" "app/build/outputs/apk/debug/app-$abi-debug.apk"
 done
