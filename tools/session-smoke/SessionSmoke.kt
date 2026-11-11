@@ -847,5 +847,81 @@ fun main() {
             transientSnapshot.consecutivePlaybackSnapshotFaults == 0)
     transientSnapshot.close()
 
+    // A decoder with an unreadable status must not be interpreted as a broken
+    // codec at startup. A third consecutive read fault is fatal and stays
+    // latched until the user explicitly retries.
+    val unreadableTsEngines = mutableListOf<FakeEngine>()
+    val unreadableTs = PlayerSession(ctx, listOf(media("unreadable.ts")), 0,
+        RecentStore()) { selected ->
+        FakeEngine(selected, mutableListOf()).also(unreadableTsEngines::add)
+    }
+    val unreadableNative = unreadableTsEngines.single()
+    unreadableNative.snapshotFailuresRemaining = 3
+    repeat(2) { unreadableTs.refresh() }
+    verify("temporary status faults cannot cause automatic TS engine handoff",
+        unreadableTs.kind == EngineKind.MPV && unreadableTsEngines.size == 1 &&
+        unreadableTs.wantsPlay && unreadableTs.snapshot.error == null)
+    unreadableTs.refresh()
+    verify("fatal status fault never masquerades as codec error to trigger fallback",
+        unreadableTs.kind == EngineKind.MPV && unreadableTsEngines.size == 1 &&
+        unreadableTs.snapshot.error == "Playback state unavailable" &&
+        !unreadableTs.wantsPlay && unreadableNative.pauseCalls == 1)
+    unreadableTs.refresh()
+    verify("fatal status fault stays latched even if next native poll would succeed",
+        unreadableTs.snapshot.error == "Playback state unavailable" &&
+        unreadableTs.playbackSnapshotFaults == 3 &&
+        unreadableTs.consecutivePlaybackSnapshotFaults == 3 &&
+        unreadableTsEngines.size == 1)
+    unreadableTs.retry()
+    verify("explicit Retry rearms a fresh MPV and clears latched status faults",
+        unreadableTs.kind == EngineKind.MPV && unreadableTsEngines.size == 2 &&
+        unreadableTsEngines.first().released == 1 &&
+        unreadableTs.consecutivePlaybackSnapshotFaults == 0 &&
+        unreadableTs.snapshot.error == null)
+    unreadableTs.close()
+
+    val unreadableMkvSource = media("unreadable.mkv")
+    val unreadableMkvStore = RecentStore().also {
+        it.update(unreadableMkvSource, 57_000L, 300_000L)
+    }
+    val unreadableMkvEngines = mutableListOf<FakeEngine>()
+    val unreadableMkv = PlayerSession(ctx, listOf(unreadableMkvSource), 0,
+        unreadableMkvStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(unreadableMkvEngines::add)
+    }
+    unreadableMkvEngines.single().snapshotFailuresRemaining = 3
+    repeat(3) { unreadableMkv.refresh() }
+    verify("unreadable Media3 MKV status never triggers automatic LibVLC handoff",
+        unreadableMkv.kind == EngineKind.MEDIA3 && unreadableMkvEngines.size == 1 &&
+        unreadableMkv.snapshot.error == "Playback state unavailable")
+    verify("status read failures cannot persist a provisional timeline",
+        unreadableMkvStore.read().single().positionMs == 57_000L)
+    unreadableMkv.retry()
+    verify("manual recovery retains original MKV Continue Watching target",
+        unreadableMkvEngines.size == 2 &&
+        unreadableMkvEngines.last().loadStartMs == 57_000L &&
+        unreadableMkvEngines.first().released == 1)
+    unreadableMkv.close()
+
+    // Source switching previously used an untracked snapshot() call. Count
+    // that failure too, while retaining an unacknowledged Continue Watching seek.
+    val switchSource = media("status-switch.mp4")
+    val switchStore = RecentStore().also { it.update(switchSource, 74_000L, 300_000L) }
+    val switchEngines = mutableListOf<FakeEngine>()
+    val switchStatus = PlayerSession(ctx, listOf(switchSource), 0,
+        switchStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(switchEngines::add)
+    }
+    switchEngines.single().current = PlaybackSnapshot(
+        position = 0L, duration = 300_000L, canSeek = true, loading = true)
+    switchEngines.single().snapshotFailuresRemaining = 1
+    switchStatus.switchEngine(EngineKind.VLC)
+    verify("switch-time status exception contributes to bounded failure diagnostics",
+        switchStatus.playbackSnapshotFaults == 1)
+    verify("status exception during switch preserves pending resume and explicit engine",
+        switchStatus.kind == EngineKind.VLC &&
+        switchEngines.last().loadStartMs == 74_000L)
+    switchStatus.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }
