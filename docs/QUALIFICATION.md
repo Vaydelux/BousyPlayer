@@ -1,6 +1,6 @@
-# Bousy Player v0.18 — Qualification gates
+# Bousy Player v0.19 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.18 hardens native descriptor ownership, stale VLC saved seeks and on-demand Android heap/FD sampling; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.19 hardens repeated surface attach/detach, partial native attach recovery and bounded manual resource-delta observations; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -10,7 +10,9 @@ Scope: standalone BousyPlayer private repository. v0.18 hardens native descripto
 | v0.15 delayed MPV resume and TV queue source gates | PASS: [GitHub Actions #14](https://github.com/Vaydelux/BousyPlayer/actions/runs/42989807568) |
 | v0.16 permission-bound saved state and diagnostic/track gates | PASS: [GitHub Actions #16](https://github.com/Vaydelux/BousyPlayer/actions/runs/42993922342) |
 | v0.17 subtitle/health/native regression gates | PASS: [GitHub Actions #17](https://github.com/Vaydelux/BousyPlayer/actions/runs/42998083471), 75 session regressions and both APKs |
-| v0.18 libmpv/LibVLC descriptor and seek lifecycle gates | PENDING v0.18 GitHub Actions workflow |
+| v0.18 libmpv/LibVLC descriptor and seek lifecycle gates | PASS: [GitHub Actions #19](https://github.com/Vaydelux/BousyPlayer/actions/runs/43001018061) |
+| v0.19 repeated surface attach/detach + failure injection | PENDING v0.19 GitHub Actions workflow |
+| v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
 | v0.18 Android on-demand memory/FD probe | SOURCE IMPLEMENTED; hardware sampling NOT RUN |
 | v0.14 SHA-256 checksum manifest | PASS: [v0.14 prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.14-743f04bc) |
 | v0.12 ABI-split APK build | PASS: [GitHub Actions build #10](https://github.com/Vaydelux/BousyPlayer/actions/runs/42984416569), both debug APKs published |
