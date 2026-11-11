@@ -14,3 +14,7 @@ Date: November 12, 2026
 This inventory is **Maven only**, and is not a full Android binary bill of materials. Embedded native C/C++ libraries may be vulnerable independently of their Maven wrappers. OSV results depend on the provider's database coverage; a clean result is not proof of absence of vulnerabilities. The workflow cannot prove application runtime behavior, codec patents, TV D-pad interaction, device longevity or production signing.
 
 Separate follow-up milestones: inventory embedded ELF/shared-library versions, review native library licenses, generate verifiable build provenance, implement signed release distribution, and run Android TV/ARM32 hardware soak tests.
+
+## First enforced vulnerability remediation
+
+The first v0.27 scan resolved 131 Maven modules and identified `com.google.guava:guava:33.3.1-android` as affected by `GHSA-xxph-c9ww-hj94` / `CVE-2026-102554`, a deserialization-related denial-of-service advisory. Rather than waive the finding, `app/build.gradle.kts` now constrains its transitive Guava dependency to the upstream-patched `33.7.2-android` variant. Each build must still prove that Gradle actually resolves the patched version and that the OSV scan is clean. See the [upstream advisory](https://github.com/google/guava/security/advisories/GHSA-xxph-c9ww-hj94).

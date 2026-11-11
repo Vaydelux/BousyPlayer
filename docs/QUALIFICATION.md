@@ -62,3 +62,5 @@ PR/feature branch Android qualification is read-only. Main-branch APK publishing
 ## v0.27 security evidence
 
 The Gradle debug classpath is resolved to Maven module versions and exported as a CycloneDX 1.5 SBOM. An OSV querybatch scan includes pagination handling and fails closed on unavailable/incomplete scans or known advisories. Both reports and APKs are covered by release checksums. It is deliberately *not* an SBOM of all embedded native binaries, Gradle plugins, build tooling, or Android platform components. License, transitive native CVE, source provenance and release-signing evidence are outstanding.
+
+The first v0.27 scan correctly **failed** on the Guava `33.3.1-android` advisory `GHSA-xxph-c9ww-hj94`. A patched `33.7.2-android` transitive version constraint was added. Do not interpret the earlier failing run as a qualified release; a fresh clean build and scan are required.

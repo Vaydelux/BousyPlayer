@@ -116,6 +116,7 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 ## v0.27 — Maven supply-chain evidence and advisory gate
 
 - **Resolved dependency inventory:** A Gradle `generateDebugSbom` task inventories actual version-resolved Maven modules from `debugRuntimeClasspath` in CycloneDX 1.5 JSON, not just direct dependency declarations.
+- **First advisory addressed:** The scan detected Guava 33.3.1-android (`GHSA-xxph-c9ww-hj94`); the build now constrains its transitive Guava dependency to patched `33.7.2-android`, subject to a clean rerun.
 - **OSV advisory check:** Every resolved Maven coordinate/version is queried through the OSV batch API. CI refuses to publish on malformed/partial responses, unavailable scanning service, or known advisories; results are written to a local JSON report. The scanner sends package identifiers only, never media URLs or user data.
 - **Auditable debug assets:** Each successful prerelease includes the two ABI APKs, a Maven dependency SBOM, an OSV report and SHA-256 hashes for all four files.
 - **Important scope limit:** The Maven inventory includes wrapper AAR artifacts but does not resolve which FFmpeg, mpv, VLC or other native C/C++ versions were bundled within them. Native CVE and redistribution reviews remain mandatory.
