@@ -61,5 +61,9 @@ resourceProbe = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/ResourceProb
 assert 'ResourceProbe.sample()' in source and 'Sample resource usage' in source, 'manual resource sampling missing'
 assert 'File("/proc/self/fd").list()?.size' in resourceProbe, 'resource probe must only count FDs, not read link targets'
 assert 'getNativeHeapAllocatedSize()' in resourceProbe, 'native heap usage missing'
-assert 'uri' not in resourceProbe.lower() and 'https:' not in resourceProbe.lower(), 'resource probe must not retain URLs'
+# Inspect executable lines, not comments describing the privacy guarantee.
+probeCode = '\n'.join(line for line in resourceProbe.splitlines()
+    if not line.lstrip().startswith(('*', '//')))
+assert 'uri' not in probeCode.lower() and 'https:' not in probeCode.lower(), 'resource probe must not retain URLs'
+assert 'readSymbolicLink' not in probeCode and 'readlink' not in probeCode, 'do not inspect descriptor targets'
 print('PASS: on-demand Android heap and descriptor-count sampling without media identifiers')
