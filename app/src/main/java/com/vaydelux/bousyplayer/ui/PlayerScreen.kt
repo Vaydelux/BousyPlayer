@@ -270,7 +270,7 @@ fun PlayerScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                ActionButton("‹", onClose)
+                                ActionButton("‹", onClose, accessibilityLabel = "Back to library")
                                 Column(Modifier.weight(1f)) {
                                     Text(session.source.title, color = CinemaColor.text,
                                         fontWeight = FontWeight.Bold, maxLines = 1,
@@ -285,7 +285,7 @@ fun PlayerScreen(
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ActionButton("‹  Back", onClose)
+                            ActionButton("‹  Back", onClose, accessibilityLabel = "Back to library")
                             Column(Modifier.weight(1f)) {
                                 Text(session.source.title, color = CinemaColor.text,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
@@ -336,7 +336,8 @@ fun PlayerScreen(
                                 ActionButton(if (session.wantsPlay) "❚❚" else "▶", {
                                     session.playPause(); activate()
                                 }, highlighted = true,
-                                    modifier = Modifier.weight(1.25f).focusRequester(transportFocus))
+                                    modifier = Modifier.weight(1.25f).focusRequester(transportFocus),
+                                    accessibilityLabel = if (session.wantsPlay) "Pause playback" else "Play video")
                                 ActionButton("+10", { session.seekBy(10_000); activate() },
                                     modifier = Modifier.weight(1f), enabled = screen.canSeek)
                             }
@@ -386,7 +387,8 @@ fun PlayerScreen(
                     }, modifier = Modifier.weight(1f), color = CinemaColor.text,
                         style = MaterialTheme.typography.titleMedium)
                     ActionButton("✕", { menu = PlayerMenu.NONE; activate() },
-                        modifier = Modifier.focusRequester(menuFocus))
+                        modifier = Modifier.focusRequester(menuFocus),
+                        accessibilityLabel = "Close player menu")
                 }
                 HorizontalDivider(color = CinemaColor.panelLight)
                 when (menu) {

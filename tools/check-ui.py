@@ -137,3 +137,11 @@ assert 'width(maxWidth.coerceAtMost(390.dp))' in source, 'Drawer width must not 
 assert 'PlaybackRecoveryPolicy.offerManualRecovery(' in source, 'Long rebuffer manual action missing'
 assert 'ActionButton("Recover stalled playback"' in source, 'User-initiated stalled playback recovery missing'
 print('PASS: persistent premium themes, adaptive compact errors and user-directed rebuffer recovery')
+
+assert 'accessibilityLabel: String? = null' in home, 'ActionButton screen reader label extension missing'
+assert 'Modifier.semantics { contentDescription = accessibilityLabel }' in home, 'Accessibility semantics not applied'
+assert 'maxWidth < 380.dp' in home, 'Extra-narrow home header must reflow'
+assert 'accessibilityLabel = "Back to library"' in source, 'Back icon needs readable label'
+assert 'accessibilityLabel = "Close player menu"' in source, 'Close icon needs readable label'
+assert 'accessibilityLabel = if (session.wantsPlay) "Pause playback" else "Play video"' in source, 'Compact transport must expose stateful semantics'
+print('PASS: compact screen labels and extra-narrow header accessibility gates')

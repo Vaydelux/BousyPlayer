@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,13 +27,16 @@ fun ActionButton(
     onClick: () -> Unit,
     highlighted: Boolean = false,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    accessibilityLabel: String? = null
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 52.dp)
+            .then(if (accessibilityLabel == null) Modifier else
+                Modifier.semantics { contentDescription = accessibilityLabel })
             .onFocusChanged { hasFocus = it.isFocused }
             .border(if (hasFocus) BorderStroke(3.dp, CinemaColor.accent)
                 else BorderStroke(0.dp, Color.Transparent), RoundedCornerShape(15.dp)),
@@ -64,12 +69,22 @@ fun HomeScreen(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (compact) 18.dp else 36.dp, vertical = 24.dp)
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
-                    color = CinemaColor.accent)
-                TextButton(onClick = { isThemeDialogOpen = true }) {
-                    Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+            if (maxWidth < 380.dp) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
+                        color = CinemaColor.accent)
+                    TextButton(onClick = { isThemeDialogOpen = true }) {
+                        Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
+                        color = CinemaColor.accent)
+                    TextButton(onClick = { isThemeDialogOpen = true }) {
+                        Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
