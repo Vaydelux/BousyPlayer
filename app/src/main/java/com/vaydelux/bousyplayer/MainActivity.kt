@@ -17,6 +17,7 @@ import com.vaydelux.bousyplayer.engine.PlayerSession
 import com.vaydelux.bousyplayer.engine.QueuePolicy
 import com.vaydelux.bousyplayer.engine.SessionRestorePolicy
 import com.vaydelux.bousyplayer.model.MediaSource
+import com.vaydelux.bousyplayer.model.HistoryPolicy
 import com.vaydelux.bousyplayer.model.SourcePolicy
 import com.vaydelux.bousyplayer.ui.BousyPlayerTheme
 import com.vaydelux.bousyplayer.ui.HomeScreen
@@ -65,10 +66,10 @@ private fun titleForUri(activity: ComponentActivity, uri: Uri): String {
                     if (cursor.moveToFirst()) cursor.getString(0) else null
                 }
         }.getOrNull()
-        if (!name.isNullOrBlank()) return name
+        if (!name.isNullOrBlank()) return HistoryPolicy.safeTitle(name)
     }
-    return uri.lastPathSegment?.substringAfterLast('/')?.substringBefore('?')
-        ?.takeIf { it.isNotBlank() } ?: "Untitled video"
+    return HistoryPolicy.safeTitle(uri.lastPathSegment?.substringAfterLast('/')
+        ?.substringBefore('?')?.takeIf { it.isNotBlank() } ?: "Untitled video")
 }
 
 @Composable
@@ -188,6 +189,10 @@ private fun PlayerApp(activity: MainActivity, incoming: Uri?, clearIncoming: () 
             },
             onRecent = { entry ->
                 openSources(listOf(entry.source))
+            },
+            onClearHistory = {
+                recentsStore.clear()
+                recents = emptyList()
             }
         )
     } else {

@@ -48,9 +48,11 @@ fun HomeScreen(
     recents: List<RecentStore.Entry>,
     onPickFiles: () -> Unit,
     onOpenUrl: (String) -> Unit,
-    onRecent: (RecentStore.Entry) -> Unit
+    onRecent: (RecentStore.Entry) -> Unit,
+    onClearHistory: () -> Unit
 ) {
     var isUrlDialogOpen by remember { mutableStateOf(false) }
+    var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
     var url by remember { mutableStateOf("") }
     val valid = SourcePolicy.isValidNetworkUrl(url)
     BoxWithConstraints(Modifier.fillMaxSize().background(CinemaColor.background)) {
@@ -80,7 +82,14 @@ fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(26.dp))
-            Text("CONTINUE WATCHING", style = MaterialTheme.typography.titleMedium, color = CinemaColor.muted)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("CONTINUE WATCHING", style = MaterialTheme.typography.titleMedium,
+                    color = CinemaColor.muted)
+                TextButton(onClick = { isClearHistoryDialogOpen = true }) {
+                    Text("Clear history")
+                }
+            }
             Spacer(Modifier.height(10.dp))
             if (recents.isEmpty()) {
                 Box(Modifier.fillMaxWidth().heightIn(min = 110.dp)
@@ -120,6 +129,23 @@ fun HomeScreen(
             Text("MP4 • MKV • TS • HLS / DASH • Audio & subtitles • 3 playback engines",
                 style = MaterialTheme.typography.labelSmall, color = CinemaColor.muted)
         }
+    }
+    if (isClearHistoryDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isClearHistoryDialogOpen = false },
+            title = { Text("Clear Continue Watching?") },
+            text = { Text("This removes saved local playback progress from this app. " +
+                "Your media files and Android document permissions are not deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearHistory()
+                    isClearHistoryDialogOpen = false
+                }) { Text("Clear history") }
+            },
+            dismissButton = {
+                TextButton(onClick = { isClearHistoryDialogOpen = false }) { Text("Cancel") }
+            }
+        )
     }
     if (isUrlDialogOpen) {
         AlertDialog(

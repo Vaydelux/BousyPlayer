@@ -1,5 +1,6 @@
 import android.net.Uri
 import com.vaydelux.bousyplayer.model.SourcePolicy
+import com.vaydelux.bousyplayer.model.HistoryPolicy
 
 private var checks = 0
 fun ensure(description: String, passes: Boolean) {
@@ -24,5 +25,20 @@ fun main() {
     ensure("seek negative is clamped", SourcePolicy.clampSeek(-5L, 10_000L) == 0L)
     ensure("unknown-duration seek is zero", SourcePolicy.clampSeek(5_000L, 0L) == 0L)
     ensure("time displays correctly", SourcePolicy.displayTime(3_661_000L) == "1:01:01")
+    ensure("malformed stream port rejected", !SourcePolicy.isValidNetworkUrl("https://example.org:99999/video"))
+    ensure("zero stream port rejected", !SourcePolicy.isValidNetworkUrl("https://example.org:0/video"))
+    ensure("empty stream port rejected", !SourcePolicy.isValidNetworkUrl("https://example.org:/video"))
+    ensure("newline injected stream rejected", !SourcePolicy.isValidNetworkUrl("https://example.org/a\nheader"))
+    ensure("encoded CRLF rejected", !SourcePolicy.isValidNetworkUrl("https://example.org/%0d%0aabc"))
+    ensure("overlong stream URL rejected", !SourcePolicy.isValidNetworkUrl("https://example.org/" + "a".repeat(8_192)))
+    ensure("explicit HTTPS stream port allowed", SourcePolicy.isValidNetworkUrl("https://example.org:8443/video.mp4?token=x"))
+    ensure("persistable content URI accepted", HistoryPolicy.isPersistableDocumentUri("content://media/doc/1"))
+    ensure("stream URL never enters local history", !HistoryPolicy.isPersistableDocumentUri("https://example.org/movie.mkv"))
+    ensure("overlong document URI excluded", !HistoryPolicy.isPersistableDocumentUri("content://media/" + "a".repeat(2_048)))
+    ensure("history title strips controls and bidi overrides", HistoryPolicy.safeTitle("Episode\n\u202eTitle") == "EpisodeTitle")
+    ensure("history title has bounded length", HistoryPolicy.safeTitle("x".repeat(1_000)).length == HistoryPolicy.MAX_TITLE_LENGTH)
+    ensure("blank title gets safe default", HistoryPolicy.safeTitle("\n\t") == "Video")
+    ensure("history progress cannot exceed bounded duration", HistoryPolicy.safePosition(Long.MAX_VALUE, Long.MAX_VALUE) == HistoryPolicy.MAX_DURATION_MS)
+    ensure("negative saved duration clamps", HistoryPolicy.safeDuration(-5L) == 0L)
     println("PASS: $checks URL/model policy checks")
 }

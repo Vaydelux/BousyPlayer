@@ -37,3 +37,9 @@ Local smoke tests compile the actual session/model/native Kotlin files **against
 ## Android external intents and display power
 
 Exported external HTTPS VIEW intents require media MIME types to avoid intercepting ordinary web links. The Home screen's explicit HTTPS URL field still accepts any approved secure media host. Video surfaces clear `keepScreenOn` when the session is paused, at EOF, in error, or disposed. Neither feature changes engine resource ownership.
+
+## Enterprise privacy and release boundaries (v0.26)
+
+Local Continue Watching is explicitly clearable through a confirm-first action. Provider titles are bounded and remove control/bidi override characters; only bounded persisted content URIs are retained. Clearing progress does not revoke Android SAF grants, because other sessions may still rely on them. HTTPS input validation is stricter but **does not** sandbox native decoder redirects or ensure TLS behavior of third-party libraries.
+
+PR/feature-branch CI has a read-only token. Main-only release publication runs in a separate write-scoped workflow that repeats compilation, native/session smoke, lint, Android tests, APK/ELF ABI validation and hashes. Device certification and production signing are separate milestones.

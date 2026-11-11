@@ -1,6 +1,6 @@
-# Bousy Player v0.25 — Qualification gates
+# Bousy Player v0.26 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.25 latches fatal decoder-status failures, prevents false codec fallbacks and guards reads during lifecycle/engine switching; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: BousyPlayer private repository. v0.26 adds bounded local history, confirmed user privacy reset, tighter HTTPS inputs and read-only PR build credentials; hardware remains unverified. This is automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -16,7 +16,9 @@ Scope: standalone BousyPlayer private repository. v0.25 latches fatal decoder-st
 | v0.21 Media3 local MKV silent-stall fallback / position retention | PASS: [GitHub Actions #23](https://github.com/Vaydelux/BousyPlayer/actions/runs/43021579698), 97 session regressions |
 | v0.22 playback phase and explicit backward seek regression gates | PASS: [GitHub Actions #24](https://github.com/Vaydelux/BousyPlayer/actions/runs/43026999771), 102 session checks |
 | v0.23 stalled-seek retry and clean EOF restart | PASS: [GitHub Actions #25](https://github.com/Vaydelux/BousyPlayer/actions/runs/43036121213), 108 session checks and both ABIs |
-| v0.24 decoder ownership, transient snapshot fault tolerance | PASS: [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580) |\n| v0.25 latched snapshot failure and no false engine fallback | PENDING v0.25 CI, includes new JVM session regressions |
+| v0.24 decoder ownership, transient snapshot fault tolerance | PASS: [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580) |
+| v0.25 latched snapshot failure and no false engine fallback | PASS: [GitHub Actions #32](https://github.com/Vaydelux/BousyPlayer/actions/runs/43047420473) |
+| v0.26 privacy controls, URL validation and isolated CI release | PENDING v0.26 qualification and prerelease |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -51,3 +53,7 @@ This requires JDK 17, Gradle 8.13, and Android SDK 36. Results:
 - `app/build/outputs/apk/debug/app-arm64-v8a-debug.apk`
 
 Each APK is independently checked by `tools/verify-apk.py`. A successful build does not guarantee runtime codec or native-library compatibility.
+
+## v0.26 additional gates
+
+PR/feature branch Android qualification is read-only. Main-branch APK publishing is a separate write-scoped workflow that re-runs the full build-and-qualify script before release. The RecentStore privacy instrumentation is **compiled, not executed**, in hosted CI. Network redirects, native dependency vulnerabilities and real-device performance remain untested.
