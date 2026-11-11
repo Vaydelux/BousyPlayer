@@ -17,7 +17,7 @@ fi
 # Fail the build if the actual session or native-surface simulations regress.
 "${runner[@]}" --no-daemon --stacktrace \
   :session-smoke:run :native-smoke:run \
-  :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+  :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
 for abi in armeabi-v7a arm64-v8a; do
   python3 tools/verify-apk.py "$abi" "app/build/outputs/apk/debug/app-$abi-debug.apk"
 done

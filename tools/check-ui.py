@@ -73,3 +73,14 @@ assert 'not proof of a memory leak' in source, 'resource trend may not be presen
 trendPolicy = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlaybackPolicy.kt').read_text()
 assert 'class ResourceTrendRecorder' in trendPolicy and '1_024' in trendPolicy, 'resource trend must have bounded state'
 print('PASS: manual resource baseline/delta and no automatic leak verdict')
+ 
+activitySource = Path('app/src/main/java/com/vaydelux/bousyplayer/MainActivity.kt').read_text()
+assert 'override fun onTrimMemory(level: Int)' in activitySource, 'Activity must forward OS memory trims'
+assert 'activePlayerSession?.onMemoryPressure(level)' in activitySource, 'OS memory trim must reach active session'
+assert 'activity.bindPlayerSession(session)' in activitySource, 'Activity session lifecycle binding missing'
+assert 'activity.unbindPlayerSession(session)' in activitySource, 'Activity session lifecycle cleanup missing'
+assert 'Lifecycle.Event.ON_START -> session.onForeground()' in source, 'foreground lifecycle reset missing'
+assert 'Lifecycle.Event.ON_STOP -> session.onBackground()' in source, 'background lifecycle capture missing'
+instrumentation = Path('app/src/androidTest/java/com/vaydelux/bousyplayer/MainActivityLifecycleTest.kt')
+assert instrumentation.is_file() and 'scenario.recreate()' in instrumentation.read_text(), 'Android lifecycle instrumentation source missing'
+print('PASS: activity memory-trim binding, foreground reentry and instrumentation source')

@@ -89,7 +89,11 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
     }
     DisposableEffect(lifecycle, session) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) session.onBackground()
+            when (event) {
+                Lifecycle.Event.ON_STOP -> session.onBackground()
+                Lifecycle.Event.ON_START -> session.onForeground()
+                else -> Unit
+            }
         }
         lifecycle.lifecycle.addObserver(observer)
         onDispose { lifecycle.lifecycle.removeObserver(observer); session.close() }

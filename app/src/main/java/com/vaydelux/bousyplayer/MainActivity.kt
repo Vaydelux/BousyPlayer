@@ -24,6 +24,22 @@ import com.vaydelux.bousyplayer.ui.PlayerScreen
 
 class MainActivity : ComponentActivity() {
     private var incoming by mutableStateOf<Uri?>(null)
+    private var activePlayerSession: PlayerSession? = null
+
+    internal fun bindPlayerSession(session: PlayerSession?) {
+        activePlayerSession = session
+    }
+
+    internal fun unbindPlayerSession(session: PlayerSession?) {
+        if (activePlayerSession === session) activePlayerSession = null
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // A stopped/UI-hidden player can drop its native decoder while retaining
+        // only a lightweight, paused foreground session and Continue Watching.
+        activePlayerSession?.onMemoryPressure(level)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,6 +124,10 @@ private fun PlayerApp(activity: ComponentActivity, incoming: Uri?, clearIncoming
     LaunchedEffect(session?.index, session) {
         val current = session?.source ?: return@LaunchedEffect
         rememberActiveDocument(current)
+    }
+    DisposableEffect(activity, session) {
+        activity.bindPlayerSession(session)
+        onDispose { activity.unbindPlayerSession(session) }
     }
 
     val filePicker = rememberLauncherForActivityResult(
