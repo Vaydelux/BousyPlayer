@@ -22,8 +22,9 @@ code = int(required(r'^\s*versionCode\s*=\s*(\d+)', gradle, 'versionCode'))
 minor = int(version.split('.')[1])
 assert code == minor, f'versionCode {code} does not match versionName {version}'
 assert f'Bousy Player v{version.rsplit(".", 1)[0]}' in readme, 'README release title mismatch'
-for abi in ('armeabi-v7a', 'arm64-v8a'):
-    assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-{abi}-debug.apk' in workflow, f'{abi} CI APK filename missing'
+# The release step expands the ABI filename dynamically inside its shell loop.
+assert 'for abi in armeabi-v7a arm64-v8a' in workflow, 'CI must publish both ABI variants'
+assert f'BousyPlayer-v{version.rsplit(".", 1)[0]}-$abi-debug.apk' in workflow, 'CI per-ABI APK filename template missing'
 assert 'isUniversalApk = false' in gradle, 'Universal ABI APK must be disabled'
 assert 'include("armeabi-v7a", "arm64-v8a")' in gradle, 'Expected ARM ABI split configuration missing'
 assert f'debug-v{version.rsplit(".", 1)[0]}-' in workflow and 'gh release create' in workflow, 'CI prerelease publication missing'
