@@ -11,6 +11,26 @@ class SourcePolicyTest {
         assertFalse(SourcePolicy.isValidNetworkUrl("https://u:pass@example.com/media.mp4"))
         assertFalse(SourcePolicy.isValidNetworkUrl("not a URL"))
     }
+    @Test fun rejectsMalformedUntrustedMediaUrls() {
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com:99999/a"))
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com:0/a"))
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com:/a"))
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com/%0Ainjected"))
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com/\r\ninjected"))
+        assertFalse(SourcePolicy.isValidNetworkUrl("https://example.com/" + "x".repeat(8_192)))
+        assertTrue(SourcePolicy.isValidNetworkUrl("https://cdn.example.com:8443/v.m3u8?token=abc"))
+    }
+    @Test fun localHistoryIsBoundedAndSanitized() {
+        assertTrue(HistoryPolicy.isPersistableDocumentUri("content://provider/video/1"))
+        assertFalse(HistoryPolicy.isPersistableDocumentUri("https://example.org/movie"))
+        assertFalse(HistoryPolicy.isPersistableDocumentUri("content://provider/" + "x".repeat(2_048)))
+        assertEquals("Titleok", HistoryPolicy.safeTitle("Title\n\u202eok"))
+        assertEquals(HistoryPolicy.MAX_TITLE_LENGTH, HistoryPolicy.safeTitle("X".repeat(1_000)).length)
+        assertEquals("Video", HistoryPolicy.safeTitle("\r\n"))
+        assertEquals(0L, HistoryPolicy.safeDuration(-5L))
+        assertEquals(HistoryPolicy.MAX_DURATION_MS,
+            HistoryPolicy.safePosition(Long.MAX_VALUE, Long.MAX_VALUE))
+    }
     @Test fun seekClampsToKnownBounds() {
         assertEquals(0, SourcePolicy.clampSeek(-10, 1000))
         assertEquals(1000, SourcePolicy.clampSeek(1500, 1000))

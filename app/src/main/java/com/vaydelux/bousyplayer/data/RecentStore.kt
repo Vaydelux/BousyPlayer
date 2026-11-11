@@ -3,6 +3,7 @@ package com.vaydelux.bousyplayer.data
 import android.content.Context
 import android.net.Uri
 import com.vaydelux.bousyplayer.model.MediaSource
+import com.vaydelux.bousyplayer.model.HistoryPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 import com.vaydelux.bousyplayer.engine.PlaybackResumePolicy
@@ -15,19 +16,21 @@ class RecentStore(context: Context) {
     data class Entry(val source: MediaSource, val positionMs: Long, val durationMs: Long)
 
     fun read(): List<Entry> = runCatching {
-        val array = JSONArray(prefs.getString("entries", "[]"))
-        // Never expand arbitrarily large/corrupted history blobs into UI objects.
+        val raw = prefs.getString("entries", "[]") ?: "[]"
+        // Reject oversized blobs before allocating JSONArray objects; do not
+        // eagerly expand provider-controlled metadata on low-RAM TVs.
+        if (raw.length > HistoryPolicy.MAX_HISTORY_JSON_CHARS) return@runCatching emptyList<Entry>()
+        val array = JSONArray(raw)
         (0 until minOf(array.length(), 20)).mapNotNull { index ->
             val item = array.optJSONObject(index) ?: return@mapNotNull null
-            val uri = item.optString("uri", "").take(8_192)
-            if (uri.isBlank() || Uri.parse(uri).scheme != "content") return@mapNotNull null
-            val duration = item.optLong("duration", 0L).coerceAtLeast(0L)
-            val position = item.optLong("position", 0L).coerceIn(0L, duration)
-            Entry(
-                MediaSource(Uri.parse(uri), item.optString("title", "Video").take(180), true),
-                position, duration
-            )
-        }
+            val uri = item.optString("uri", "")
+            if (!HistoryPolicy.isPersistableDocumentUri(uri)) return@mapNotNull null
+            val duration = HistoryPolicy.safeDuration(item.optLong("duration", 0L))
+            Entry(MediaSource(Uri.parse(uri),
+                HistoryPolicy.safeTitle(item.optString("title", "Video")), true),
+                HistoryPolicy.safePosition(item.optLong("position", 0L), duration),
+                duration)
+        }.distinctBy { it.source.uri }
     }.getOrDefault(emptyList())
 
     /**
@@ -48,20 +51,32 @@ class RecentStore(context: Context) {
     }
 
     fun update(source: MediaSource, positionMs: Long, durationMs: Long) {
-        if (!source.isDocument || source.uri.scheme != "content") return
+        if (!source.isDocument ||
+            !HistoryPolicy.isPersistableDocumentUri(source.uri.toString())) return
+        val safeDuration = HistoryPolicy.safeDuration(durationMs)
+        val safePosition = HistoryPolicy.safePosition(positionMs, safeDuration)
         val others = read().filterNot { it.source.uri == source.uri }
-        val completed = PlaybackResumePolicy.isCompleted(positionMs, durationMs)
-        val first = if (completed) emptyList() else listOf(Entry(source, positionMs, durationMs))
+        val completed = PlaybackResumePolicy.isCompleted(safePosition, safeDuration)
+        val first = if (completed) emptyList() else listOf(Entry(
+            source.copy(title = HistoryPolicy.safeTitle(source.title)), safePosition, safeDuration))
         write((first + others).take(20))
+    }
+
+    /** Forget saved progress only. Never revoke grants needed by other apps/sessions. */
+    fun clear() {
+        prefs.edit().remove("entries").apply()
     }
 
     private fun write(entries: List<Entry>) {
         val array = JSONArray()
         entries.take(20).forEach { entry ->
-            array.put(JSONObject().put("uri", entry.source.uri.toString())
-                .put("title", entry.source.title)
-                .put("position", entry.positionMs)
-                .put("duration", entry.durationMs))
+            val uri = entry.source.uri.toString()
+            if (!HistoryPolicy.isPersistableDocumentUri(uri)) return@forEach
+            val duration = HistoryPolicy.safeDuration(entry.durationMs)
+            array.put(JSONObject().put("uri", uri)
+                .put("title", HistoryPolicy.safeTitle(entry.source.title))
+                .put("position", HistoryPolicy.safePosition(entry.positionMs, duration))
+                .put("duration", duration))
         }
         prefs.edit().putString("entries", array.toString()).apply()
     }

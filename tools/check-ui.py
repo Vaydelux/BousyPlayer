@@ -115,3 +115,10 @@ deviceTests = instrumentedSession.read_text()
 assert 'failedFirstNativeSnapshotIsReleasedAndNotOwnedByTheSession' in deviceTests
 assert 'transientSnapshotFaultDoesNotReallocateNativeEngine' in deviceTests
 print('PASS: startup native ownership and bounded, private snapshot fault diagnostics')
+
+# Privacy actions are deliberately user initiated; automated source checks are not UI tests.
+assert 'onClearHistory: () -> Unit' in home, 'history privacy callback missing'
+assert 'Clear Continue Watching?' in home and 'onClearHistory()' in home, 'clear-history confirmation missing'
+assert 'recentsStore.clear()' in activity, 'home must erase saved local playback history'
+assert 'HistoryPolicy.safeTitle(name)' in activity, 'provider filenames require sanitization'
+print('PASS: explicit local-history clearing and bounded provider titles')
