@@ -1,8 +1,8 @@
-# Bousy Player v0.21 — Android TV / phone / tablet
+# Bousy Player v0.22 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.20 passed [GitHub Actions #22](https://github.com/Vaydelux/BousyPlayer/actions/runs/43016568018), with 84 session ownership/recovery checks, native-adapter simulations, Android unit tests and lint, compiled lifecycle instrumentation and two verified ABI debug APKs. v0.21 adds a bounded silent-stall fallback for automatic local MKV playback. A new passing CI build is required before treating v0.21 as build-qualified; physical playback remains unverified.
+> **Qualification status:** v0.21 passed [GitHub Actions #23](https://github.com/Vaydelux/BousyPlayer/actions/runs/43021579698), including 97 playback-session regressions, native adapter simulations, Android lint and per-ABI debug APK verification. v0.22 adds an in-memory playback phase monitor and safeguards backward-seek acknowledgement. A new successful CI run is required to qualify v0.22. Physical Android TV playback remains unverified.
 
 ## v0.13 core hardening
 
@@ -73,6 +73,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Regression coverage:** Pure policy/JUnit tests and Gradle-run actual PlayerSession fake-decoder tests cover 24,999/25,000ms boundaries, saved-offset preservation, one-time release/hand-off ordering, resumed Play, focus loss/gain, and provisional timelines.
 - **Scope:** Debug APKs still require Android compilation, session and native adapter smoke tests, lint, per-ABI APK/ELF validation and checksums. This is **not** physical MKV/codec certification.
 
+## v0.22 — Playback state accuracy and seek integrity
+
+- **Distinct playback states:** The player now distinguishes initial startup, active playback, rebuffering after confirmed playback, pending explicit seeks, unconfirmed seeks after 12 active seconds, Pause, waiting, completion and fatal decoder errors. The Options drawer shows the current state and approximate time spent in it.
+- **Nonfatal seek recovery guidance:** An explicit seek still unconfirmed after 12 active seconds displays a useful warning to seek again or choose another playback engine, without a surprise auto-retry or automatic engine replacement. Time spent paused or waiting for audio focus is excluded from the seek warning.
+- **Reliable backward seeks:** A stale old decoder timestamp ahead of a backward seek target no longer counts as successful acknowledgement. Only a position near the target confirms an explicit seek. Pending seek targets continue to be protected from premature Continue Watching writes.
+- **More accurate buffering UI:** Initial video loading and mid-playback rebuffering are labeled separately; paused sessions cannot display a misleading continuously active buffering message.
+- **Regression gates:** Android-free policy/JUnit checks and real PlayerSession fake-engine tests protect state transitions, backward-seek target integrity, the delayed-seek threshold, Pause/focus grace periods, and playback continuity.
+- **Boundaries:** No automated seek restart is introduced. Debug builds still require CI compilation, tests, lint, ABI ELF/APK integrity and checksums. Runtime codec, D-pad and prolonged ARM32 stability remain untested on devices.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -123,7 +132,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.21 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.22 results.
 
 ## Scope / known limitations
 
@@ -132,7 +141,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.21 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.22 progress report.
 
 ## Repository and downloads
 

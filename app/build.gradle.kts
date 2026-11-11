@@ -10,8 +10,8 @@ android {
         applicationId = "com.vaydelux.bousyplayer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "0.21.0"
+        versionCode = 22
+        versionName = "0.22.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // Two installable debug APKs: no 300MB universal native-library bundle.
