@@ -27,3 +27,7 @@ The branch and PR workflows must independently pass all Kotlin session and nativ
 The previously hidden-HUD left/right overlay used `screen.canSeek` from the last status poll and could display `+10s` even after a failed native command. `PlayerSession.seekTo/seekBy` now return a Boolean representing **command accepted**, not completed playback. Hidden HUD shows `+10s requested` or `−10s requested` only after an issued command, and `Seek unavailable` if the decoder rejects it. Fake decoder tests cover rejection, acceptance, unknown seekability, and background suppression.
 
 `play()`, `retry()` and seek commands now refuse stale user callbacks while the Activity is backgrounded. This prevents a backgrounded screen from recreating a decoder or issuing a new seek after `onBackground()`. Foreground Play remains an explicit user action.
+
+## LibVLC native snapshot read integrity
+
+LibVLC's previous `snapshot()` swallowed native `time`, `length`, `isPlaying` and `isSeekable` getter failures and substituted a valid-looking `0:00` or Paused/Not Seekable state. A status-read exception is not authoritative playback data. These four critical fields now propagate exceptions to `PlayerSession.readDecoderSnapshot()`, which allows two consecutive transient misses before a latched user-recoverable error and preserves the last trusted progress. Caption-track polling still remains best-effort. Native adapter regression fixtures inject individual getter faults and verify the decoder can recover on a subsequent valid read.

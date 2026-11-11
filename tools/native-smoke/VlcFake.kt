@@ -49,11 +49,42 @@ class MediaPlayer(vlc: LibVLC) {
     }
     val vlcVout = Vout()
     var media: Media? = null
+    var failNextPlayingRead = false
+    var failNextSeekableRead = false
+    var failNextDurationRead = false
+    var failNextPositionRead = false
     var isPlaying = false
+        get() {
+            if (failNextPlayingRead) {
+                failNextPlayingRead = false
+                throw IllegalStateException("synthetic LibVLC playing status failure")
+            }
+            return field
+        }
     var isSeekable = true
+        get() {
+            if (failNextSeekableRead) {
+                failNextSeekableRead = false
+                throw IllegalStateException("synthetic LibVLC seekability failure")
+            }
+            return field
+        }
     var length = 300000L
+        get() {
+            if (failNextDurationRead) {
+                failNextDurationRead = false
+                throw IllegalStateException("synthetic LibVLC duration failure")
+            }
+            return field
+        }
     private var _time = 0L
-    val time get() = _time
+    val time get(): Long {
+        if (failNextPositionRead) {
+            failNextPositionRead = false
+            throw IllegalStateException("synthetic LibVLC timeline read failed private://media")
+        }
+        return _time
+    }
     var rate = 1f
     var audioTracks: List<TrackDescription>? = listOf()
     var spuTracks: List<TrackDescription>? = listOf()

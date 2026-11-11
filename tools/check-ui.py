@@ -195,3 +195,10 @@ assert 'fun seekTo(ms: Long): Boolean' in sessionV33 and 'fun seekBy(deltaMs: Lo
 assert 'if (closed || backgrounded || !snapshot.canSeek' in sessionV33, 'Seek rejected in background'
 assert 'if (closed || backgrounded) return' in sessionV33, 'Background play/retry guard missing'
 print('PASS: D-pad seek feedback tracks issued command and background transport is gated')
+
+vlcStatusSource = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/VlcEngine.kt').read_text()
+for field in ('native.time', 'native.length', 'native.isPlaying', 'native.isSeekable'):
+    assert f'runCatching {{ {field} }}.getOrDefault' not in vlcStatusSource, f'Critical LibVLC {field} status must not silently become 0 or false'
+assert 'val nativePosition = native.time.coerceAtLeast(0L)' in vlcStatusSource, 'LibVLC timeline must propagate failures to session status policy'
+assert 'LibVLC snapshot read faults propagate' in smokeSource, 'Missing LibVLC transient snapshot failure regression'
+print('PASS: failed LibVLC native timeline/control reads never manufacture valid status')

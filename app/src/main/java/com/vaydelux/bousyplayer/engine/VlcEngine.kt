@@ -247,13 +247,20 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
             cachedTracks = (audioTracks + subs).take(80)
             lastTrackPollMs = now
         }
-        val nativePlaying = runCatching { native.isPlaying }.getOrDefault(false)
+        // Timeline/control JNI reads are authoritative. Masking a thrown
+        // getter with 0:00/false would corrupt Continue Watching and could
+        // disguise a transient native-status failure as an ordinary pause.
+        // Let PlayerSession's bounded snapshot-fault policy quarantine it.
+        val nativePlaying = native.isPlaying
+        val nativePosition = native.time.coerceAtLeast(0L)
+        val nativeDuration = native.length.coerceAtLeast(0L)
+        val nativeSeekable = native.isSeekable
         return PlaybackSnapshot(
-            position = runCatching { native.time }.getOrDefault(0L).coerceAtLeast(0),
-            duration = runCatching { native.length }.getOrDefault(0L).coerceAtLeast(0),
+            position = nativePosition,
+            duration = nativeDuration,
             buffered = 0,
             isPlaying = nativePlaying,
-            canSeek = runCatching { native.isSeekable }.getOrDefault(false),
+            canSeek = nativeSeekable,
             loading = opening && !nativePlaying,
             ended = finished,
             error = errorMessage,

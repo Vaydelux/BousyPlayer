@@ -164,6 +164,34 @@ fun main() {
     }
     println("PASS: LibVLC manual seek supersedes delayed saved resume")
 
+    // A native read exception is unknown status, not a valid 0:00 timestamp.
+    // The real PlayerSession owns retries and preserves the trusted timeline.
+    val statusVlc = VlcEngine(context)
+    statusVlc.load(uri, 44_000L, false)
+    val statusNative = checkNotNull(MediaPlayer.last)
+    statusNative.setTime(44_000L)
+    statusNative.failNextPositionRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a failed time getter as a valid 0:00 timeline"
+    }
+    check(statusVlc.snapshot().position == 44_000L) {
+        "LibVLC did not recover after one transient timeline read fault"
+    }
+    statusNative.failNextDurationRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a duration failure as an unknown zero duration"
+    }
+    statusNative.failNextPlayingRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a native isPlaying exception as a pause"
+    }
+    statusNative.failNextSeekableRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a native seekability read failure"
+    }
+    statusVlc.release()
+    println("PASS: LibVLC snapshot read faults propagate to bounded session recovery without fake 0:00")
+
     // Hammer Android's SurfaceHolder lifecycle without starting multiple
     // video renderers, retaining a stale output or reopening the video.
     val beforeSurfaceLoop = ParcelFileDescriptor.activeCount
