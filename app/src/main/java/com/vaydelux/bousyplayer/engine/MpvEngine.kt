@@ -28,6 +28,23 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
     @Volatile private var positionMs = 0L
     @Volatile private var durationMs = 0L
     private var seekAfterLoadMs = 0L
+    // Saved resumes can become seekable a little AFTER FILE_LOADED on MPEG-TS.
+    // Retry briefly; every delayed callback is tied to the current media generation.
+    private fun retrySavedSeek(generation: Long, attempt: Int) {
+        if (released || generation != loadGeneration || !sourceRequested ||
+            !fileLoaded || seekAfterLoadMs <= 0L) return
+        if (runCatching { native.getPropertyBoolean("seekable") == true }.getOrDefault(false)) {
+            val desired = seekAfterLoadMs
+            runCatching {
+                native.command(arrayOf("seek", (desired / 1000.0).toString(), "absolute"))
+            }.onSuccess {
+                if (generation == loadGeneration && seekAfterLoadMs == desired) seekAfterLoadMs = 0L
+            }.onFailure { errorMessage = "libmpv could not apply the saved seek" }
+        } else if (attempt < 12) {
+            main.postDelayed({ retrySavedSeek(generation, attempt + 1) }, 250L)
+        }
+    }
+
     private var speedValue = 1f
     private var aspectMode = AspectMode.FIT
     @Volatile private var nativeTracks: List<MediaTrack> = emptyList()
@@ -87,6 +104,10 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
                         }
                     }
                 }
+                "seekable" -> if (value && fileLoaded && seekAfterLoadMs > 0L) {
+                    val generation = loadGeneration
+                    main.post { retrySavedSeek(generation, 0) }
+                }
                 "eof-reached" -> if (value && fileLoaded) {
                     ended = true
                     intendedPlay = false
@@ -105,12 +126,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
                         runCatching { updateTracks() }
                         runCatching { native.setPropertyDouble("speed", speedValue.toDouble()) }
                         runCatching { applyAspect() }
-                        if (seekAfterLoadMs > 0L &&
-                            runCatching { native.getPropertyBoolean("seekable") == true }.getOrDefault(false)) {
-                            runCatching {
-                                native.command(arrayOf("seek", (seekAfterLoadMs / 1000.0).toString(), "absolute"))
-                            }.onSuccess { seekAfterLoadMs = 0L }
-                        }
+                        retrySavedSeek(generation, 0)
                         // Never force Play when the user paused during loading or seeking.
                         runCatching { native.setPropertyBoolean("pause", !intendedPlay) }
                             .onFailure { errorMessage = "libmpv could not apply playback intent" }
@@ -166,6 +182,7 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
             native.observeProperty("duration/full", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             native.observeProperty("paused-for-cache", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             native.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+            native.observeProperty("seekable", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             native.observeProperty("track-list", MPVLib.MpvFormat.MPV_FORMAT_NODE)
         } catch (failure: Throwable) {
             runCatching { native.removeObserver(observer) }
@@ -270,7 +287,10 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
     override fun pause() { intendedPlay = false; if (!released) native.setPropertyBoolean("pause", true) }
     override fun seek(positionMs: Long) {
         if (!released && fileLoaded && native.getPropertyBoolean("seekable") == true) {
+            // Explicit D-pad/timeline seeking must supersede a pending saved resume.
+            // Clear the old request only after the native seek command succeeds.
             native.command(arrayOf("seek", (positionMs.coerceAtLeast(0L) / 1000.0).toString(), "absolute"))
+            seekAfterLoadMs = 0L
         }
     }
     override fun speed(value: Float) {

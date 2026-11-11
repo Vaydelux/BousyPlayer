@@ -443,5 +443,21 @@ fun main() {
         mkvReady.kind == EngineKind.MEDIA3 && mkvReadyEngines.size == 1)
     mkvReady.close()
 
+
+    val hintEngines = mutableListOf<FakeEngine>()
+    val hintStore = RecentStore().also { it.update(media("hint.ts"), 82_000L, 300_000L) }
+    val hint = PlayerSession(ctx, listOf(media("hint.ts")), 0, hintStore) { candidate ->
+        FakeEngine(candidate, mutableListOf()).also(hintEngines::add)
+    }
+    val hintNative = hintEngines.last()
+    hintNative.current = PlaybackSnapshot(position = 2_000L, duration = 300_000L,
+        canSeek = true, loading = false, isPlaying = true)
+    hint.refresh()
+    verify("pending resume seek hint displays requested 1:22 instead of provisional time",
+        hint.seekDisplayPosition() == 82_000L)
+    hint.seekBy(10_000L)
+    verify("remote seek hint advances to intended 1:32 even if native timeline lags",
+        hint.seekDisplayPosition() == 92_000L)
+    hint.close()
     println("PASS: $counter session ownership/behavior checks")
 }

@@ -31,3 +31,11 @@ print('PASS: seek buttons disabled when native demuxer reports non-seekable medi
 assert 'BackHandler { goBack() }' in source, 'AndroidX must own Back navigation'
 assert not re.search(r'^\s*KeyEvent\.KEYCODE_BACK\s*->', source, re.M), 'Back must not be handled twice'
 print('PASS: TV Back navigation has one owner')
+
+assert 'LazyColumn(' in source and 'itemsIndexed(session.playlist' in source, 'queue must use lazy composition'
+assert 'session.playlist.forEachIndexed' not in source, 'eager queue item composition is forbidden'
+assert 'queueListState.scrollToItem(session.index)' in source, 'queue must scroll to selected item'
+assert 'Modifier.focusRequester(queueFocus)' in source, 'queue must restore TV remote focus'
+assert 'if (menu == PlayerMenu.QUEUE) Modifier' in source, 'LazyColumn must not be nested in unbounded vertical scroll'
+assert 'session.seekDisplayPosition()' in source, 'remote seek preview must reflect pending target'
+print('PASS: lazy queue TV focus, bounded scroll and pending-seek preview guards')

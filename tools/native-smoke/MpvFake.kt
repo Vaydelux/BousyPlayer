@@ -29,10 +29,14 @@ class MPVLib {
     var destroyed = false
     var surfaceReady = false
     private val bools = mutableMapOf<String,Boolean>()
+    private var observer: EventObserver? = null
+    fun setSeekable(value: Boolean) { bools["seekable"] = value }
+    fun emitEvent(eventId: Int) { observer?.event(eventId) }
+    fun emitBoolean(name: String, value: Boolean) { bools[name] = value; observer?.eventProperty(name, value) }
     fun setOptionString(name: String, value: String) {}
     fun init() {}
-    fun addObserver(observer: EventObserver) {}
-    fun removeObserver(observer: EventObserver) {}
+    fun addObserver(observer: EventObserver) { this.observer = observer }
+    fun removeObserver(observer: EventObserver) { if (this.observer === observer) this.observer = null }
     fun observeProperty(name: String, format: Int) {}
     fun command(args: Array<String>) { commands += args.toList() }
     fun getPropertyBoolean(name: String): Boolean? = bools[name] ?: (name == "seekable")

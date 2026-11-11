@@ -6,6 +6,9 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.*
@@ -17,7 +20,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,10 +42,11 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
     var showBuffering by remember(session) { mutableStateOf(false) }
     var seekHint by remember(session) { mutableStateOf<String?>(null) }
     val menuFocus = remember { FocusRequester() }
+    val queueFocus = remember { FocusRequester() }
+    val queueListState = remember(session) { LazyListState(firstVisibleItemIndex = session.index) }
     val surfaceFocus = remember { FocusRequester() }
     val transportFocus = remember { FocusRequester() }
     val screen = session.snapshot
-    val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     fun activate() { hudVisible = true; interaction++ }
     fun goBack() {
@@ -61,8 +64,16 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
             showBuffering = true
         }
     }
-    LaunchedEffect(session, menu, hudVisible) {
+    LaunchedEffect(session, menu, hudVisible, session.index) {
         when {
+            menu == PlayerMenu.QUEUE -> {
+                // Scroll before focusing; selected rows near the end of a long queue
+                // are not composed until LazyColumn brings them into view.
+                queueListState.scrollToItem(session.index)
+                withFrameNanos { }
+                runCatching { queueFocus.requestFocus() }
+                    .onFailure { runCatching { menuFocus.requestFocus() } }
+            }
             menu != PlayerMenu.NONE -> runCatching { menuFocus.requestFocus() }
             hudVisible -> runCatching { transportFocus.requestFocus() }
             else -> runCatching { surfaceFocus.requestFocus() }
@@ -110,12 +121,12 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> if (menu == PlayerMenu.NONE && !hudVisible) {
                     session.seekBy(-10_000)
-                    seekHint = if (screen.canSeek) "−10s · ${SourcePolicy.displayTime(session.snapshot.position)}" else "Not seekable"
+                    seekHint = if (screen.canSeek) "−10s · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Not seekable"
                     true
                 } else false
                 KeyEvent.KEYCODE_DPAD_RIGHT -> if (menu == PlayerMenu.NONE && !hudVisible) {
                     session.seekBy(10_000)
-                    seekHint = if (screen.canSeek) "+10s · ${SourcePolicy.displayTime(session.snapshot.position)}" else "Not seekable"
+                    seekHint = if (screen.canSeek) "+10s · ${SourcePolicy.displayTime(session.seekDisplayPosition())}" else "Not seekable"
                     true
                 } else false
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
@@ -302,7 +313,9 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
             Column(
                 Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(min = 290.dp, max = 390.dp)
                     .background(CinemaColor.panel.copy(alpha = .98f))
-                    .verticalScroll(rememberScrollState()).padding(18.dp),
+                    .then(if (menu == PlayerMenu.QUEUE) Modifier
+                        else Modifier.verticalScroll(rememberScrollState()))
+                    .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,10 +368,22 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                         }
                     }
                     PlayerMenu.QUEUE -> {
-                        session.playlist.forEachIndexed { index, item ->
-                            ActionButton("${if (index == session.index) "▶  " else ""}${item.title}", {
-                                session.openPlaylistIndex(index); menu = PlayerMenu.NONE; activate()
-                            }, modifier = Modifier.fillMaxWidth())
+                        Text("${session.index + 1} / ${session.playlist.size} · D-pad to browse",
+                            color = CinemaColor.muted, style = MaterialTheme.typography.labelMedium)
+                        LazyColumn(
+                            state = queueListState,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            itemsIndexed(session.playlist, key = { index, _ -> index }) { index, item ->
+                                ActionButton("${if (index == session.index) "▶  " else ""}${item.title}", {
+                                    session.openPlaylistIndex(index)
+                                    menu = PlayerMenu.NONE
+                                    activate()
+                                }, modifier = Modifier.fillMaxWidth()
+                                    .then(if (index == session.index)
+                                        Modifier.focusRequester(queueFocus) else Modifier))
+                            }
                         }
                     }
                     PlayerMenu.NONE -> Unit

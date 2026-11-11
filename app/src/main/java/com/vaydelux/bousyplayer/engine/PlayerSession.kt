@@ -282,6 +282,11 @@ class PlayerSession(
         ) saveProgress()
     }
 
+    /** Stable seek target for a brief remote HUD overlay while native time is still stale. */
+    fun seekDisplayPosition(): Long =
+        if (!resumePositionAcknowledged || pendingSeekToStart) lastAttemptedPositionMs
+        else snapshot.position.coerceAtLeast(0L)
+
     fun playPause() { if (wantsPlay) pause() else play() }
     fun play() {
         if (closed) return
@@ -331,7 +336,8 @@ class PlayerSession(
     fun seekTo(ms: Long) {
         if (!snapshot.canSeek || snapshot.duration <= 0L) return
         val target = SourcePolicy.clampSeek(ms, snapshot.duration)
-        val accepted = runCatching { engine?.seek(target) }.isSuccess
+        val targetEngine = engine ?: return
+        val accepted = runCatching { targetEngine.seek(target) }.isSuccess
         if (!accepted) return
         // Explicit seek supersedes any pending automatic resume. Wait for the
         // engine's reported position before persisting the new timeline.
