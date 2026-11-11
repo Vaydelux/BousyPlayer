@@ -72,7 +72,7 @@ private fun titleForUri(activity: ComponentActivity, uri: Uri): String {
 }
 
 @Composable
-private fun PlayerApp(activity: ComponentActivity, incoming: Uri?, clearIncoming: () -> Unit) {
+private fun PlayerApp(activity: MainActivity, incoming: Uri?, clearIncoming: () -> Unit) {
     val recentsStore = remember { RecentStore(activity) }
     var recents by remember { mutableStateOf(recentsStore.readAccessible()) }
     // Construct a new session only AFTER releasing the old one. Keeping a PlayerSession
