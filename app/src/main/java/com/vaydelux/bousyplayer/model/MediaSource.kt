@@ -56,9 +56,14 @@ object HistoryPolicy {
     const val MAX_HISTORY_JSON_CHARS = 65_536
     const val MAX_DURATION_MS = 30L * 24 * 60 * 60 * 1_000
 
-    fun isPersistableDocumentUri(value: String): Boolean =
-        value.length in 11..MAX_URI_LENGTH &&
-            runCatching { Uri.parse(value).scheme == "content" }.getOrDefault(false)
+    fun isPersistableDocumentUri(value: String): Boolean {
+        if (value.length !in 11..MAX_URI_LENGTH) return false
+        // java.net.URI works in both Android and local JVM tests. Do not use
+        // android.net.Uri here: its framework stub throws in plain JUnit.
+        val parsed = runCatching { java.net.URI(value) }.getOrNull() ?: return false
+        return parsed.scheme == "content" && !parsed.host.isNullOrBlank() &&
+            parsed.rawUserInfo == null && parsed.rawFragment == null
+    }
 
     fun safeTitle(value: String): String =
         value.asSequence().filterNot { char ->
