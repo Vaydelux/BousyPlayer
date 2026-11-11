@@ -169,3 +169,9 @@ sessionSmoke = Path('tools/session-smoke/SessionSmoke.kt').read_text()
 assert 'backgrounded Activity cannot poll a native decoder' in sessionSmoke, 'Background poll regression missing'
 assert 'unreadable decoder snapshot cannot acknowledge a nearby explicit seek' in sessionSmoke, 'Stale seek acknowledgement regression missing'
 print('PASS: background polling suspension, fresh seek acknowledgement and non-destructive history filter')
+
+activitySourceV31 = Path('app/src/main/java/com/vaydelux/bousyplayer/MainActivity.kt').read_text()
+assert 'event == Lifecycle.Event.ON_START && session == null' in activitySourceV31, 'Home must recheck SAF read permissions on foreground return'
+assert 'recents = recentsStore.readAccessible()' in activitySourceV31, 'SAF grant restoration must make history cards visible again'
+assert 'lifecycle.lifecycle.removeObserver(observer)' in activitySourceV31, 'Activity foreground history observer must be removed'
+print('PASS: background-to-home SAF permission refresh without irreversible history loss')
