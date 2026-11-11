@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import com.vaydelux.bousyplayer.data.RecentStore
 import com.vaydelux.bousyplayer.engine.PlayerSession
 import com.vaydelux.bousyplayer.model.MediaSource
@@ -27,7 +26,7 @@ class MainActivity : ComponentActivity() {
         incoming = if (intent?.action == Intent.ACTION_VIEW) intent?.data else null
         setContent {
             BousyPlayerTheme {
-                PlayerApp(incoming) { incoming = null }
+                PlayerApp(this@MainActivity, incoming) { incoming = null }
             }
         }
     }
@@ -53,8 +52,7 @@ private fun titleForUri(activity: ComponentActivity, uri: Uri): String {
 }
 
 @Composable
-private fun PlayerApp(incoming: Uri?, clearIncoming: () -> Unit) {
-    val activity = LocalContext.current as ComponentActivity
+private fun PlayerApp(activity: ComponentActivity, incoming: Uri?, clearIncoming: () -> Unit) {
     val recentsStore = remember { RecentStore(activity) }
     var recents by remember { mutableStateOf(recentsStore.readAccessible()) }
     // Construct a new session only AFTER releasing the old one. Keeping a PlayerSession
