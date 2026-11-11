@@ -1,8 +1,8 @@
-# Bousy Player v0.22 — Android TV / phone / tablet
+# Bousy Player v0.23 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.21 passed [GitHub Actions #23](https://github.com/Vaydelux/BousyPlayer/actions/runs/43021579698), including 97 playback-session regressions, native adapter simulations, Android lint and per-ABI debug APK verification. v0.22 adds an in-memory playback phase monitor and safeguards backward-seek acknowledgement. A new successful CI run is required to qualify v0.22. Physical Android TV playback remains unverified.
+> **Qualification status:** v0.22 passed [GitHub Actions #24](https://github.com/Vaydelux/BousyPlayer/actions/runs/43026999771), including 102 session regressions, native adapter simulations, Android tests/lint and verified ARM32/ARM64 debug APKs. v0.23 adds explicit manual stalled-seek retry, native-safe EOF restart and compile-only Android decoder lifecycle instrumentation. Its new CI run must pass before v0.23 is considered build-qualified. Physical playback remains unverified.
 
 ## v0.13 core hardening
 
@@ -82,6 +82,14 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Regression gates:** Android-free policy/JUnit checks and real PlayerSession fake-engine tests protect state transitions, backward-seek target integrity, the delayed-seek threshold, Pause/focus grace periods, and playback continuity.
 - **Boundaries:** No automated seek restart is introduced. Debug builds still require CI compilation, tests, lint, ABI ELF/APK integrity and checksums. Runtime codec, D-pad and prolonged ARM32 stability remain untested on devices.
 
+## v0.23 — Explicit seek recovery, clean replay and lifecycle coverage
+
+- **Manual delayed-seek recovery:** A pending explicit seek that has remained unconfirmed for 12 active seconds now offers a **Retry pending seek** action in Player Options. It resends the same target through the existing engine and restarts only the seek warning timer. It **never** changes engines, allocates another decoder, modifies Pause intent, silently plays, or overrides a native error.
+- **Safe native EOF restart:** Selecting Restart/Start Over on a completed video opens a fresh decoder from 0:00 rather than issuing an in-place seek to a finished native demuxer. The restart controls remain available even if a decoder marks its ended stream non-seekable. The action is explicit user intent to begin playing.
+- **Progress integrity:** Failed seek retries retain the previously requested target; stale native timestamps are not saved over Continue Watching. The existing acknowledgement threshold and bounded manual decoder retry gate remain intact.
+- **Device lifecycle instrumentation added:** A new Android `PlayerSessionLifecycleInstrumentedTest` uses a fake decoder in an actual Android context to assert background/UI-hidden memory cleanup is idempotent, that returning to foreground never autoplays, that explicit Play restores the prior offset, and that switching engines preserves Pause. CI compiles the Android instrumentation APK, but it is **not run** without a device/emulator.
+- **Regression gates:** Expanded real PlayerSession JVM smoke tests for EOF recreation, manual seek retry success/failure, target preservation and decoder allocation count, plus UI source guards and Android compilation/lint/ABI verification. Real codec and ARM32 endurance testing still remain.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -132,7 +140,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.22 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.23 results.
 
 ## Scope / known limitations
 
@@ -141,7 +149,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.22 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.23 progress report.
 
 ## Repository and downloads
 
