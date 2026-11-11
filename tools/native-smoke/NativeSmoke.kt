@@ -103,7 +103,7 @@ fun main() {
     replacement.release()
     check(ParcelFileDescriptor.activeCount == beforeReplacement &&
         replacementNative.commands.any { it.firstOrNull() == "stop" } &&
-        replacementNative.destroyed) {
+        replacementNative.destroyed && replacementNative.destroyCount == 1) {
         "mpv release did not stop/destroy decoder or close SAF descriptors exactly once"
     }
     println("PASS: libmpv repeated local load, failed stop, and idempotent FD teardown")

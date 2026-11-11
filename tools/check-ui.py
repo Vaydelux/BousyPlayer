@@ -56,3 +56,10 @@ assert 'Live subtitle styling is not yet supported by LibVLC' in source, 'VLC st
 assert 'session.playbackHealth' in source and 'on-device only' in source, 'private session-health UI missing'
 assert 'subtitleAppearance' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'caption appearance not retained in session'
 print('PASS: subtitle accessibility presets and bounded in-session health UI')
+
+resourceProbe = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/ResourceProbe.kt').read_text()
+assert 'ResourceProbe.sample()' in source and 'Sample resource usage' in source, 'manual resource sampling missing'
+assert 'File("/proc/self/fd").list()?.size' in resourceProbe, 'resource probe must only count FDs, not read link targets'
+assert 'getNativeHeapAllocatedSize()' in resourceProbe, 'native heap usage missing'
+assert 'uri' not in resourceProbe.lower() and 'https:' not in resourceProbe.lower(), 'resource probe must not retain URLs'
+print('PASS: on-demand Android heap and descriptor-count sampling without media identifiers')

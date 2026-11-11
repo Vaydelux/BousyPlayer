@@ -41,6 +41,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
     var scrubTarget by remember(session) { mutableFloatStateOf(-1f) }
     var showBuffering by remember(session) { mutableStateOf(false) }
     var seekHint by remember(session) { mutableStateOf<String?>(null) }
+    // On-demand only: avoids overhead in the 400ms player snapshot loop.
+    var resourceSample by remember(session) { mutableStateOf<ResourceSample?>(null) }
     val menuFocus = remember { FocusRequester() }
     val queueFocus = remember { FocusRequester() }
     val queueListState = remember(session) { LazyListState(firstVisibleItemIndex = session.index) }
@@ -345,6 +347,17 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                             "Longest buffering: ${health.longestBufferMs / 1000L}s",
                             color = CinemaColor.muted,
                             style = MaterialTheme.typography.labelSmall)
+                        ActionButton("Sample resource usage", {
+                            resourceSample = ResourceProbe.sample()
+                            activate()
+                        }, modifier = Modifier.fillMaxWidth())
+                        resourceSample?.let { usage ->
+                            Text("App heap: ${usage.javaHeapMiB} MiB · " +
+                                "Native heap: ${usage.nativeHeapMiB} MiB · " +
+                                "Open FDs: ${usage.openFds?.toString() ?: "unavailable"}",
+                                color = CinemaColor.muted,
+                                style = MaterialTheme.typography.labelSmall)
+                        }
                         Text("Playback engine", color = CinemaColor.muted)
                         EngineKind.entries.forEach { other ->
                             ActionButton("${if (session.kind == other) "✓  " else ""}${other.label}", {
