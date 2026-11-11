@@ -34,6 +34,30 @@ fun main() {
     checkNamed("no async fallback when user paused", !PlaybackPolicy.shouldAutoFallbackNativeStartup(EngineKind.MPV,false,true,false,false,false,true))
     checkNamed("auto TS native failure fallback", PlaybackPolicy.engineCandidates(EngineKind.MPV,false) == listOf(EngineKind.MPV, EngineKind.MEDIA3))
     checkNamed("explicit VLC stays explicit", PlaybackPolicy.engineCandidates(EngineKind.VLC,true) == listOf(EngineKind.VLC))
+    checkNamed("stalled local MKV switches after 25 active seconds",
+        PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,true,false,false,false,25_000L))
+    checkNamed("local MKV is not timed out before the deadline",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,true,false,false,false,24_999L))
+    checkNamed("manual engine choice cannot silently change on MKV startup",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,true,true,true,false,false,false,90_000L))
+    checkNamed("paused local MKV cannot trigger fallback",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,false,false,false,false,90_000L))
+    checkNamed("focus-suspended local MKV cannot trigger fallback",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,true,true,false,false,90_000L))
+    checkNamed("ready MKV cannot time out to LibVLC",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,true,false,true,false,90_000L))
+    checkNamed("HTTPS MKV cannot time out to LibVLC",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,false,true,false,false,false,90_000L))
+    checkNamed("Media3-to-VLC fallback cannot repeat",
+        !PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            EngineKind.MEDIA3,false,true,true,false,false,true,90_000L))
     checkNamed("local MKV chooses Media3 then VLC only at startup",
         PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, false, true) == listOf(EngineKind.MEDIA3, EngineKind.VLC))
     checkNamed("explicit MKV engine never auto-falls back",

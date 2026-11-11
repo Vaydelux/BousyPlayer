@@ -68,6 +68,30 @@ class PlaybackPolicyTest {
         assertFalse(PlaybackPolicy.shouldAutoFallbackNativeStall(
             EngineKind.MPV, false, true, true, false, false, true, 40_000L))
     }
+    @Test fun matroskaStartupTimeoutIsStrictAndRequiresActiveAutoPlayback() {
+        fun permits(
+            current: EngineKind = EngineKind.MEDIA3,
+            explicit: Boolean = false,
+            local: Boolean = true,
+            playing: Boolean = true,
+            suspended: Boolean = false,
+            ready: Boolean = false,
+            attempted: Boolean = false,
+            elapsed: Long = 25_000L
+        ) = PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            current, explicit, local, playing, suspended, ready, attempted, elapsed
+        )
+        assertTrue(permits())
+        assertFalse(permits(elapsed = 24_999L))
+        assertFalse(permits(explicit = true))
+        assertFalse(permits(local = false))
+        assertFalse(permits(playing = false))
+        assertFalse(permits(suspended = true))
+        assertFalse(permits(ready = true))
+        assertFalse(permits(attempted = true))
+        assertFalse(permits(current = EngineKind.MPV))
+        assertFalse(permits(current = EngineKind.VLC))
+    }
     @Test fun matroskaAutoFallbackRespectsLocalSourceAndManualIntent() {
         assertTrue(EngineKind.isMatroska("MOVIE.MKV"))
         assertFalse(EngineKind.isMatroska("movie.mp4"))

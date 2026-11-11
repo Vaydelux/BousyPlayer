@@ -600,5 +600,65 @@ fun main() {
         failedTitle.message?.contains("secret token") != true)
     failedTitle.close()
 
+    // Media3 on a local MKV can stall without delivering a decoder exception.
+    // The single startup timeout must preserve saved offset, release old media
+    // before allocating VLC, and remain disabled after playback begins.
+    var mkvStallClock = 0L
+    val mkvStallTrace = mutableListOf<String>()
+    val mkvStallEngines = mutableListOf<FakeEngine>()
+    val mkvStallSource = media("unresponsive.mkv")
+    val mkvStallStore = RecentStore().also {
+        it.update(mkvStallSource, 64_000L, 300_000L)
+    }
+    val mkvStallSession = PlayerSession(ctx, listOf(mkvStallSource), 0,
+        mkvStallStore, clockMs = { mkvStallClock }) { selected ->
+        FakeEngine(selected, mkvStallTrace).also(mkvStallEngines::add)
+    }
+    mkvStallEngines.last().current = PlaybackSnapshot(
+        position = 0L, duration = 300_000L, canSeek = false,
+        isPlaying = false, loading = true
+    )
+    mkvStallClock = 24_999L
+    mkvStallSession.refresh()
+    verify("local MKV startup does not fall back before 25s",
+        mkvStallSession.kind == EngineKind.MEDIA3 && mkvStallEngines.size == 1)
+    mkvStallClock = 25_000L
+    mkvStallSession.refresh()
+    verify("silent MKV startup timeout transfers to VLC exactly once",
+        mkvStallSession.kind == EngineKind.VLC && mkvStallEngines.size == 2)
+    verify("silent MKV startup timeout preserves Continue Watching",
+        mkvStallEngines.last().loadStartMs == 64_000L)
+    verify("Media3 resources release before VLC load after timeout",
+        mkvStallTrace.indexOf("release:MEDIA3") <
+            mkvStallTrace.indexOf("load:VLC"))
+    mkvStallSession.close()
+
+    var mkvResumeClock = 0L
+    val mkvResumeEngines = mutableListOf<FakeEngine>()
+    val mkvResume = PlayerSession(ctx, listOf(media("paused-stall.mkv")), 0,
+        RecentStore(), clockMs = { mkvResumeClock }) { selected ->
+        FakeEngine(selected, mutableListOf()).also(mkvResumeEngines::add)
+    }
+    mkvResumeEngines.last().stalledOnPlay = true
+    mkvResumeEngines.last().current = PlaybackSnapshot(
+        position = 0L, duration = 0L, loading = true, isPlaying = false
+    )
+    mkvResumeClock = 24_000L
+    mkvResume.refresh()
+    mkvResume.pause()
+    mkvResumeClock = 100_000L
+    mkvResume.play() // starts a new ACTIVE startup window, not the old wall clock.
+    verify("MKV paused time does not count toward startup timeout",
+        mkvResumeEngines.size == 1 && mkvResume.kind == EngineKind.MEDIA3)
+    mkvResumeClock = 124_999L
+    mkvResume.refresh()
+    verify("resumed MKV retains a full active 25-second timeout window",
+        mkvResumeEngines.size == 1)
+    mkvResumeClock = 125_000L
+    mkvResume.refresh()
+    verify("stalled MKV falls back after resumed active deadline",
+        mkvResume.kind == EngineKind.VLC && mkvResumeEngines.size == 2)
+    mkvResume.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

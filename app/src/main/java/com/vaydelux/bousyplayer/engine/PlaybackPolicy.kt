@@ -78,6 +78,21 @@ object PlaybackPolicy {
             else -> listOf(preferred)
         }
 
+    /**
+     * Some Media3 MKV decoders never emit an error or a first frame.
+     * Automatic local MKV startup may switch to VLC once after 25 seconds
+     * of continuous Play intent. Paused, focus-suspended, network and
+     * already-running media must not silently change engines.
+     */
+    fun shouldAutoFallbackMatroskaStall(
+        current: EngineKind, explicit: Boolean, localMatroska: Boolean,
+        playRequested: Boolean, suspendedByFocus: Boolean,
+        everReady: Boolean, alreadyAttempted: Boolean,
+        elapsedMs: Long, timeoutMs: Long = 25_000L
+    ): Boolean = current == EngineKind.MEDIA3 && !explicit && localMatroska &&
+        playRequested && !suspendedByFocus && !everReady && !alreadyAttempted &&
+        elapsedMs >= timeoutMs
+
     fun shouldAutoFallbackMatroska(
         current: EngineKind, explicit: Boolean, localMatroska: Boolean,
         playRequested: Boolean, everReady: Boolean, alreadyAttempted: Boolean,

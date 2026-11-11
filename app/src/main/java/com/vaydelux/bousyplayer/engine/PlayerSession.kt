@@ -64,12 +64,13 @@ class PlayerSession(
     private var nativeStartupAtMs = 0L
 
     /**
-     * A native startup deadline measures continuous *active* playback intent.
-     * Time spent in a user Pause, app background, or transient audio-focus loss
-     * must not count toward the 20-second automatic MPV fallback.
+     * Automatic native/MKV fallback measures continuous active Play intent.
+     * Pausing, app backgrounding or audio-focus suspension cannot count toward
+     * the MPV 20-second or Media3 MKV 25-second startup deadlines.
      */
     private fun restartUnconfirmedNativeStartupWindow() {
-        if (kind == EngineKind.MPV && !engineEverReady) {
+        if (!engineEverReady &&
+            (kind == EngineKind.MPV || kind == EngineKind.MEDIA3)) {
             nativeStartupAtMs = clockMs()
         }
     }
@@ -272,15 +273,25 @@ class PlayerSession(
             }
             return
         }
+        val stalledMkv = PlaybackPolicy.shouldAutoFallbackMatroskaStall(
+            kind, manualEngine, isLocalMatroska(), wantsPlay, suspendedByFocus,
+            engineEverReady, compatibilityFallbackAttempted,
+            (clockMs() - nativeStartupAtMs).coerceAtLeast(0L)
+        )
         if (PlaybackPolicy.shouldAutoFallbackMatroska(
                 kind, manualEngine, isLocalMatroska(), wantsPlay,
-                engineEverReady, compatibilityFallbackAttempted, snapshot.error != null
+                engineEverReady, compatibilityFallbackAttempted,
+                snapshot.error != null || stalledMkv
             )) {
             compatibilityFallbackAttempted = true
             val position = latestPosition()
             kind = EngineKind.VLC
             open(index, position)
-            if (engine != null) message = "Media3 could not start this MKV; using LibVLC"
+            if (engine != null) message = if (stalledMkv && snapshot.error == null) {
+                "Media3 MKV startup timed out; switched to LibVLC"
+            } else {
+                "Media3 could not start this MKV; using LibVLC"
+            }
             return
         }
         if (snapshot.ended) {
