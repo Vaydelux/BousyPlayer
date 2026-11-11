@@ -210,6 +210,9 @@ fun main() {
     waiting.onBackground()
     verify("metadata-only resume never overwrites Continue Watching with zero",
         waitingStore.read().first().positionMs == 82_000L)
+    // Activity lifecycle ON_START precedes user-initiated Play. Native polling
+    // intentionally remains suspended until the user returns to foreground.
+    waiting.onForeground()
     waiting.play()
     waitingEngines.last().current = PlaybackSnapshot(
         position = 2_000L, duration = 300_000L, canSeek = true, loading = false, isPlaying = true
