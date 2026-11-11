@@ -36,20 +36,20 @@ fun main() {
     check(mpvFake.destroyed) { "mpv native resource not destroyed" }
     println("PASS: libmpv delayed saved seek and single-load surface recreation")
 
-    val override = MpvEngine(context)
-    override.load(uri, 82_000L, true)
+    val overrideEngine = MpvEngine(context)
+    overrideEngine.load(uri, 82_000L, true)
     val overrideFake = checkNotNull(MPVLib.last)
-    (override.view as SurfaceView).holder.create()
+    (overrideEngine.view as SurfaceView).holder.create()
     overrideFake.setSeekable(false)
     overrideFake.emitEvent(MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED)
     overrideFake.setSeekable(true)
-    override.seek(92_000L)
+    overrideEngine.seek(92_000L)
     android.os.Handler.drainDelayedOnce()
     check(overrideFake.commands.count { it.firstOrNull() == "seek" } == 1 &&
         overrideFake.commands.any { it.firstOrNull() == "seek" && it.getOrNull(1) == "92.0" }) {
         "explicit user seek was overridden by delayed saved resume"
     }
-    override.release()
+    overrideEngine.release()
     println("PASS: libmpv explicit seek supersedes delayed resume")
     println("PASS: libmpv waits for surface, loads once and destroys")
     val vlc = VlcEngine(context)
