@@ -1,12 +1,12 @@
-# Bousy Player v0.12 — Qualification gates
+# Bousy Player v0.13 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.13 adds bounded queue and one-shot MKV compatibility recovery; hardware still unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
 | v0.11 whole-app build | PASS: [GitHub Actions build #8](https://github.com/Vaydelux/BousyPlayer/actions/runs/42982351716), Kotlin/Gradle, unit tests, lint, APK assembly, ARM native ELF presence |
-| v0.12 ABI-split APK build | PENDING v0.12 GitHub Actions workflow |
-| v0.12 per-ABI ZIP / DEX / ELF | Validator enforces one native ABI per APK, ELF class/endianness and ARM e_machine; run as CI post-build |
+| v0.12 ABI-split APK build | PASS: [GitHub Actions build #10](https://github.com/Vaydelux/BousyPlayer/actions/runs/42984416569), both debug APKs published |
+| v0.12 per-ABI ZIP / DEX / ELF | PASS: 13 ELF objects per APK, 83.18 MB ARM32 and 89.52 MB ARM64 in CI #10 |
 | ABI validator self-tests | Run `python3 tools/test-verify-apk.py` before Gradle; synthetic fixtures only |
 | Installation on ARM32 | NOT RUN |
 | Installation on ARM64 | NOT RUN |

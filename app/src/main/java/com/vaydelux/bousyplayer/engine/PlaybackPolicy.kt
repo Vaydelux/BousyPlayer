@@ -10,6 +10,10 @@ enum class EngineKind(val label: String) {
                     name.substringBefore('?').substringAfterLast('.').lowercase() in
                         setOf("ts", "m2ts", "mts")
                 }) MPV else MEDIA3
+        /** Known Matroska suffix only; unknown formats retain the Media3 default. */
+        fun isMatroska(vararg names: String): Boolean =
+            names.any { name -> name.substringBefore('?').substringAfterLast('.')
+                .equals("mkv", ignoreCase = true) }
     }
 }
 enum class AspectMode(val label: String) { FIT("Fit"), ZOOM("Zoom"), STRETCH("Stretch") }
@@ -62,10 +66,24 @@ object PlaybackPolicy {
         playRequested && !suspendedByFocus && !everReady && !alreadyAttempted &&
         elapsedMs >= timeoutMs
 
-    /** Only AUTO native startup can fall back; explicit selection is authoritative. */
-    fun engineCandidates(preferred: EngineKind, explicit: Boolean): List<EngineKind> =
-        if (explicit || preferred == EngineKind.MEDIA3) listOf(preferred)
-        else listOf(preferred, EngineKind.MEDIA3)
+    /**
+     * A local MKV can have audio/video codecs that Media3 cannot initialize.
+     * Offer one LibVLC alternative only at startup, never for HTTPS or a manual choice.
+     */
+    fun engineCandidates(preferred: EngineKind, explicit: Boolean, localMatroska: Boolean = false): List<EngineKind> =
+        when {
+            explicit -> listOf(preferred)
+            preferred == EngineKind.MPV -> listOf(EngineKind.MPV, EngineKind.MEDIA3)
+            preferred == EngineKind.MEDIA3 && localMatroska -> listOf(EngineKind.MEDIA3, EngineKind.VLC)
+            else -> listOf(preferred)
+        }
+
+    fun shouldAutoFallbackMatroska(
+        current: EngineKind, explicit: Boolean, localMatroska: Boolean,
+        playRequested: Boolean, everReady: Boolean, alreadyAttempted: Boolean,
+        hasError: Boolean
+    ): Boolean = current == EngineKind.MEDIA3 && !explicit && localMatroska &&
+        playRequested && !everReady && !alreadyAttempted && hasError
 }
 
 /** Pure rules for persisted local playback positions (never store network credentials). */
@@ -85,4 +103,10 @@ object PlaybackResumePolicy {
         if (positionMs <= 0L || durationMs <= 0L || isCompleted(positionMs, durationMs)) return 0L
         return positionMs.coerceAtMost(durationMs)
     }
+}
+
+/** Bounds eagerly composed TV queue controls and SAF grants on low-memory devices. */
+object QueuePolicy {
+    const val MAX_ITEMS = 96
+    fun <T> bounded(items: List<T>): List<T> = items.take(MAX_ITEMS)
 }

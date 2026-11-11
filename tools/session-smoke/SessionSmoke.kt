@@ -387,5 +387,61 @@ fun main() {
         focusWaiting.kind == EngineKind.MEDIA3 && focusWaitEngines.size == 2)
     focusWaiting.close()
 
+
+    // AUTO Media3 startup should use bundled LibVLC once for a local MKV
+    // when the initial decoder fails before rendering an authoritative timeline.
+    val mkvTrace = mutableListOf<String>()
+    val mkvEngines = mutableListOf<FakeEngine>()
+    val mkvStore = RecentStore().also { it.update(media("show.mkv"), 65_000L, 300_000L) }
+    val mkvSession = PlayerSession(ctx, listOf(media("show.mkv")), 0, mkvStore) { kind ->
+        FakeEngine(kind, mkvTrace).also(mkvEngines::add)
+    }
+    verify("local MKV first tries Media3", mkvSession.kind == EngineKind.MEDIA3)
+    mkvEngines.last().current = PlaybackSnapshot(position = 0L, duration = 300_000L,
+        loading = false, error = "unsupported codec")
+    mkvSession.refresh()
+    verify("local MKV codec startup failure selects VLC once",
+        mkvSession.kind == EngineKind.VLC && mkvEngines.size == 2)
+    verify("local MKV fallback preserves saved offset",
+        mkvEngines.last().loadStartMs == 65_000L)
+    verify("local MKV releases failed decoder before replacement",
+        mkvEngines.first().released == 1 &&
+        mkvTrace.indexOf("release:MEDIA3") < mkvTrace.indexOf("load:VLC"))
+    mkvSession.close()
+
+    val mkvPausedEngines = mutableListOf<FakeEngine>()
+    val mkvPaused = PlayerSession(ctx, listOf(media("paused.mkv")), 0, RecentStore()) { kind ->
+        FakeEngine(kind, mutableListOf()).also(mkvPausedEngines::add)
+    }
+    mkvPaused.pause()
+    mkvPausedEngines.last().current = mkvPausedEngines.last().current.copy(error = "unsupported codec")
+    mkvPaused.refresh()
+    verify("paused MKV never silently changes playback engines",
+        mkvPaused.kind == EngineKind.MEDIA3 && mkvPausedEngines.size == 1)
+    mkvPaused.close()
+
+    val mkvEarlyEngines = mutableListOf<FakeEngine>()
+    val mkvEarly = PlayerSession(ctx, listOf(media("earlyfail.mkv")), 0, RecentStore()) { kind ->
+        if (kind == EngineKind.MEDIA3) throw IllegalStateException("Media3 unavailable")
+        FakeEngine(kind, mutableListOf()).also(mkvEarlyEngines::add)
+    }
+    verify("synchronous local MKV startup failure tries VLC",
+        mkvEarly.kind == EngineKind.VLC && mkvEarlyEngines.size == 1)
+    mkvEarly.close()
+
+    val mkvReadyEngines = mutableListOf<FakeEngine>()
+    val mkvReady = PlayerSession(ctx, listOf(media("alreadyplaying.mkv")), 0, RecentStore()) { kind ->
+        FakeEngine(kind, mutableListOf()).also(mkvReadyEngines::add)
+    }
+    mkvReadyEngines.last().current = mkvReadyEngines.last().current.copy(
+        position = 14_000L, isPlaying = true)
+    mkvReady.refresh()
+    mkvReadyEngines.last().current = mkvReadyEngines.last().current.copy(
+        error = "late media I/O failure", isPlaying = false)
+    mkvReady.refresh()
+    verify("no automatic engine swap after MKV began playing",
+        mkvReady.kind == EngineKind.MEDIA3 && mkvReadyEngines.size == 1)
+    mkvReady.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

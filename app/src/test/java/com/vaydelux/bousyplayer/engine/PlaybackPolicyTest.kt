@@ -68,6 +68,31 @@ class PlaybackPolicyTest {
         assertFalse(PlaybackPolicy.shouldAutoFallbackNativeStall(
             EngineKind.MPV, false, true, true, false, false, true, 40_000L))
     }
+    @Test fun matroskaAutoFallbackRespectsLocalSourceAndManualIntent() {
+        assertTrue(EngineKind.isMatroska("MOVIE.MKV"))
+        assertFalse(EngineKind.isMatroska("movie.mp4"))
+        assertEquals(listOf(EngineKind.MEDIA3, EngineKind.VLC),
+            PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, false, true))
+        assertEquals(listOf(EngineKind.MEDIA3),
+            PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, true, true))
+        assertTrue(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, false, true, true, false, false, true))
+        assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, true, true, true, false, false, true))
+        assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, false, false, true, false, false, true))
+        assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, false, true, false, false, false, true))
+        assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, false, true, true, true, false, true))
+        assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
+            EngineKind.MEDIA3, false, true, true, false, true, true))
+    }
+    @Test fun queueIsLimitedBeforeBuildingTvControls() {
+        assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
+        assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))
+    }
+
     @Test fun autoNativeStartupMayFallbackButExplicitNeverDoes() {
         assertEquals(listOf(EngineKind.MPV, EngineKind.MEDIA3),
             PlaybackPolicy.engineCandidates(EngineKind.MPV, false))

@@ -51,6 +51,7 @@ class PlayerSession(
     // failure has no decoder timeline, so Retry must not replace a saved resume with 0.
     private var lastAttemptedPositionMs = 0L
     private var nativeStartupFallbackAttempted = false
+    private var compatibilityFallbackAttempted = false
     private var engineEverReady = false
     private var nativeStartupAtMs = 0L
 
@@ -126,6 +127,8 @@ class PlayerSession(
     }
 
     val source: MediaSource get() = playlist[index]
+    private fun isLocalMatroska(): Boolean = source.uri.scheme == "content" &&
+        EngineKind.isMatroska(source.title, source.uri.lastPathSegment.orEmpty())
 
     init {
         require(playlist.isNotEmpty())
@@ -142,7 +145,10 @@ class PlayerSession(
     private fun open(newIndex: Int, requestedPosition: Long?) {
         if (closed || newIndex !in playlist.indices) return
         val switchingItem = newIndex != index
-        if (switchingItem) nativeStartupFallbackAttempted = false
+        if (switchingItem) {
+            nativeStartupFallbackAttempted = false
+            compatibilityFallbackAttempted = false
+        }
         captureCurrentProgress()
         engine?.let { old ->
             // Release old native resources before allocating any new engine.
@@ -169,7 +175,7 @@ class PlayerSession(
         // users on startup when that native library is unavailable. Explicit engine
         // choices always remain explicit; network/decoder runtime errors stay visible.
         val selected = kind
-        val candidates = PlaybackPolicy.engineCandidates(selected, manualEngine)
+        val candidates = PlaybackPolicy.engineCandidates(selected, manualEngine, isLocalMatroska())
         var lastError: Throwable? = null
         for (candidate in candidates) {
             val next = try {
@@ -184,6 +190,9 @@ class PlayerSession(
                 next.load(source.uri, resumeAt, shouldStart, externalSubtitle)
                 engine = next
                 kind = candidate
+                if (selected == EngineKind.MEDIA3 && candidate == EngineKind.VLC) {
+                    compatibilityFallbackAttempted = true
+                }
                 message = when {
                     focusDenied -> "Audio focus unavailable: press Play to try again"
                     candidate != selected -> "${selected.label} unavailable; using Media3 for this file"
@@ -240,6 +249,17 @@ class PlayerSession(
             } else {
                 "libmpv could not start; switched to Media3"
             }
+            return
+        }
+        if (PlaybackPolicy.shouldAutoFallbackMatroska(
+                kind, manualEngine, isLocalMatroska(), wantsPlay,
+                engineEverReady, compatibilityFallbackAttempted, snapshot.error != null
+            )) {
+            compatibilityFallbackAttempted = true
+            val position = latestPosition()
+            kind = EngineKind.VLC
+            open(index, position)
+            if (engine != null) message = "Media3 could not start this MKV; using LibVLC"
             return
         }
         if (snapshot.ended) {

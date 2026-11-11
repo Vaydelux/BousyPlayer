@@ -34,6 +34,18 @@ fun main() {
     checkNamed("no async fallback when user paused", !PlaybackPolicy.shouldAutoFallbackNativeStartup(EngineKind.MPV,false,true,false,false,false,true))
     checkNamed("auto TS native failure fallback", PlaybackPolicy.engineCandidates(EngineKind.MPV,false) == listOf(EngineKind.MPV, EngineKind.MEDIA3))
     checkNamed("explicit VLC stays explicit", PlaybackPolicy.engineCandidates(EngineKind.VLC,true) == listOf(EngineKind.VLC))
+    checkNamed("local MKV chooses Media3 then VLC only at startup",
+        PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, false, true) == listOf(EngineKind.MEDIA3, EngineKind.VLC))
+    checkNamed("explicit MKV engine never auto-falls back",
+        PlaybackPolicy.engineCandidates(EngineKind.MEDIA3, true, true) == listOf(EngineKind.MEDIA3))
+    checkNamed("asynchronous local MKV startup error can use VLC",
+        PlaybackPolicy.shouldAutoFallbackMatroska(EngineKind.MEDIA3,false,true,true,false,false,true))
+    checkNamed("mid-playback MKV failures do not force an engine switch",
+        !PlaybackPolicy.shouldAutoFallbackMatroska(EngineKind.MEDIA3,false,true,true,true,false,true))
+    checkNamed("network streams never use local MKV fallback",
+        !PlaybackPolicy.shouldAutoFallbackMatroska(EngineKind.MEDIA3,false,false,true,false,false,true))
+    checkNamed("queue bounded to 96 entries on low RAM TVs",
+        QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))
     checkNamed("completed videos have no stale resume", PlaybackResumePolicy.startingPosition(95,100) == 0L)
     checkNamed("midpoint resume preserved", PlaybackResumePolicy.startingPosition(40,100) == 40L)

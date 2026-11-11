@@ -16,13 +16,16 @@ class RecentStore(context: Context) {
 
     fun read(): List<Entry> = runCatching {
         val array = JSONArray(prefs.getString("entries", "[]"))
-        (0 until array.length()).mapNotNull { index ->
+        // Never expand arbitrarily large/corrupted history blobs into UI objects.
+        (0 until minOf(array.length(), 20)).mapNotNull { index ->
             val item = array.optJSONObject(index) ?: return@mapNotNull null
-            val uri = item.optString("uri", "")
+            val uri = item.optString("uri", "").take(8_192)
             if (uri.isBlank() || Uri.parse(uri).scheme != "content") return@mapNotNull null
+            val duration = item.optLong("duration", 0L).coerceAtLeast(0L)
+            val position = item.optLong("position", 0L).coerceIn(0L, duration)
             Entry(
-                MediaSource(Uri.parse(uri), item.optString("title", "Video"), true),
-                item.optLong("position", 0L), item.optLong("duration", 0L)
+                MediaSource(Uri.parse(uri), item.optString("title", "Video").take(180), true),
+                position, duration
             )
         }
     }.getOrDefault(emptyList())
