@@ -8,3 +8,7 @@ Bousy Player's new code uses architectural ideas from [Bousygram](https://github
 - A release should produce an open-source attribution page and include license notices; independent legal review may be needed for codec patents and commercial distribution.
 
 This document is an engineering checklist, not a legal clearance.
+
+## v0.27 Maven inventory vs native-license boundary
+
+The generated CycloneDX debug SBOM enumerates resolved Maven dependencies (including the AAR wrappers for libmpv and LibVLC). That does **not** enumerate transitive C/C++ FFmpeg/mpv/VLC shared libraries inside those archives, their codec patent obligations, LGPL notices or their exact linked versions. The OSV Maven query is not a native security scan. Before distributing a commercial production APK, collect native provenance, create a complete third-party notice bundle and obtain a redistribution/legal review.

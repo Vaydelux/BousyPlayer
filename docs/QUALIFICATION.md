@@ -1,6 +1,6 @@
-# Bousy Player v0.26 — Qualification gates
+# Bousy Player v0.27 — Qualification gates
 
-Scope: BousyPlayer private repository. v0.26 adds bounded local history, confirmed user privacy reset, tighter HTTPS inputs and read-only PR build credentials; hardware remains unverified. This is automated build qualification, **not** device or codec certification.
+Scope: BousyPlayer private repository. v0.27 inventories resolved Maven dependencies and gates APK publication on OSV advisories, with bounded offline regression tests. Native C/C++ binaries, device playback and signing are unverified. This is **not** certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -18,7 +18,8 @@ Scope: BousyPlayer private repository. v0.26 adds bounded local history, confirm
 | v0.23 stalled-seek retry and clean EOF restart | PASS: [GitHub Actions #25](https://github.com/Vaydelux/BousyPlayer/actions/runs/43036121213), 108 session checks and both ABIs |
 | v0.24 decoder ownership, transient snapshot fault tolerance | PASS: [GitHub Actions run 43041613580](https://github.com/Vaydelux/BousyPlayer/actions/runs/43041613580) |
 | v0.25 latched snapshot failure and no false engine fallback | PASS: [GitHub Actions #32](https://github.com/Vaydelux/BousyPlayer/actions/runs/43047420473) |
-| v0.26 privacy controls, URL validation and isolated CI release | PENDING v0.26 qualification and prerelease |
+| v0.26 privacy controls, URL validation and isolated CI release | PASS: [main release #1](https://github.com/Vaydelux/BousyPlayer/actions/runs/43066908229) |
+| v0.27 CycloneDX Maven inventory and fail-closed OSV | PENDING v0.27 qualification; native libs excluded |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -57,3 +58,7 @@ Each APK is independently checked by `tools/verify-apk.py`. A successful build d
 ## v0.26 additional gates
 
 PR/feature branch Android qualification is read-only. Main-branch APK publishing is a separate write-scoped workflow that re-runs the full build-and-qualify script before release. The RecentStore privacy instrumentation is **compiled, not executed**, in hosted CI. Network redirects, native dependency vulnerabilities and real-device performance remain untested.
+
+## v0.27 security evidence
+
+The Gradle debug classpath is resolved to Maven module versions and exported as a CycloneDX 1.5 SBOM. An OSV querybatch scan includes pagination handling and fails closed on unavailable/incomplete scans or known advisories. Both reports and APKs are covered by release checksums. It is deliberately *not* an SBOM of all embedded native binaries, Gradle plugins, build tooling, or Android platform components. License, transitive native CVE, source provenance and release-signing evidence are outstanding.

@@ -30,6 +30,11 @@ qualification = (root / 'tools/build-and-qualify.sh').read_text()
 assert ':session-smoke:run' in qualification, 'Session regression gate missing from CI build'
 assert ':native-smoke:run' in qualification, 'Native adapter regression gate missing from CI build'
 assert 'SHA256SUMS.txt' in workflow, 'Release checksums missing from CI'
+assert 'generateDebugSbom' in qualification, 'Resolved Maven SBOM generation missing from build gate'
+assert 'tools/test_supply_chain.py' in qualification, 'Offline supply-chain regression tests missing'
+assert 'tools/supply_chain.py' in qualification and '--enforce' in qualification, 'OSV fail-closed scan missing'
+assert '*.apk *.json > SHA256SUMS.txt' in workflow, 'SBOM and scan reports must be checksummed'
+assert 'dist/*.apk dist/*.json dist/SHA256SUMS.txt' in workflow, 'Release must contain security reports'
 # Ordinary PR/feature builds never hold release write credentials.
 assert 'contents: read' in qualification_workflow, 'Qualification must be read-only'
 assert 'contents: write' not in qualification_workflow, 'PR builds must never have write access'
