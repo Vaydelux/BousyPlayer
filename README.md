@@ -1,8 +1,8 @@
-# Bousy Player v0.31 — Android TV / phone / tablet
+# Bousy Player v0.32 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.30 passed [main release workflow #5](https://github.com/Vaydelux/BousyPlayer/actions/runs/43087769302) with ARM32/ARM64 debug APKs and security reports. v0.31 hardens background status polling, ensures failed decoder snapshots cannot acknowledge pending seeks, and prevents transient document-grant enumeration from destroying Continue Watching history. v0.31 CI and real-device validation are pending.
+> **Qualification status:** v0.31 merged into main and published ARM32/ARM64 debug APKs plus security evidence in [the v0.31 prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.31-77d2d708). v0.32 adds fail-closed APK signing-certificate consistency checks and a verified manifest linking the exact release asset hashes, source commit and CI run. Its own CI and release qualification are pending. Neither is a production-signing or device-certification claim.
 
 ## v0.13 core hardening
 
@@ -154,6 +154,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Non-destructive SAF permission filtering:** Recent documents that lack an enumerated persisted read permission are hidden rather than irreversibly removed from the saved history. If an Android document provider later restores access, the saved card can return. Users still have an explicit Clear History control that removes the stored records.
 - **Deterministic regression tests:** New real PlayerSession JVM smoke cases verify 100 background refresh calls cause zero native polls or health samples, foreground reentry does not autoplay, and a failed snapshot cannot confirm a nearby explicit seek. Android unit tests cover grant visibility; device-only instrumentation asserts hidden entries are not deleted.
 - **Qualification boundary:** The Android instrumentation suite compiles in CI but remains unexecuted on actual devices; native 32-bit/64-bit performance, codec reliability and power usage require physical hardware testing.
+
+
+## v0.32 — Release integrity, APK signature verification and traceability
+
+- **Independent signer check:** Android SDK `apksigner verify --verbose --print-certs` must accept both ARM32/ARM64 APKs under APK Signature Scheme v2 or newer, and their signing certificate SHA-256 fingerprints must match exactly. A signing report ships with the debug artifacts. This verifies consistency only: **debug signing is not production signing**.
+- **Traceable release evidence:** A deterministic `release-manifest.json` records the exact bytes/SHA-256 of the two APKs, Maven SBOM, native ELF inventory, native-file SBOM, OSV report and signing report, plus the full source commit SHA, GitHub repository and Actions run URL. The manifest is also checksummed in `SHA256SUMS.txt`.
+- **Fail-closed publishing:** The main-only release workflow first generates the manifest, checks every artifact hash/size/name and complete expected asset set against real files, validates the checksum file, then permits `gh release create`. Any artifact tampering, duplicate checksums, unexpected files, mismatched commit or missing signature report must block release.
+- **Offline adversarial tests:** Both preflight workflows run regression fixtures for tampered APKs, altered manifest metadata, missing/unexpected artifacts, duplicate checksums, invalid signers and v1-only signing.
+- **Scope:** Hash files and cert fingerprints are *not* signed provenance, developer identity, reproducibility, SLSA attestation, or a commercial production release. Hardware playback, native CVE mapping and redistribution-license audits remain open.
 
 
 ## Current source capabilities

@@ -10,6 +10,8 @@ python3 tools/check-theme-contrast.py
 python3 tools/check-manifest.py
 python3 tools/check-release-metadata.py
 python3 tools/test-native-inventory.py
+python3 tools/test_apk_signing.py
+python3 tools/test_release_integrity.py
 python3 - <<'PY'
 from pathlib import Path
 from xml.etree import ElementTree as ET
