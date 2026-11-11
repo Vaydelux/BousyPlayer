@@ -456,7 +456,7 @@ fun PlayerScreen(
                                 color = CinemaColor.muted,
                                 style = MaterialTheme.typography.bodySmall)
                             ActionButton("Recover stalled playback", {
-                                session.retry()
+                                session.recoverStalledPlayback()
                                 activate()
                             }, highlighted = true, modifier = Modifier.fillMaxWidth())
                         }
