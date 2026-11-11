@@ -1,6 +1,6 @@
-# Bousy Player v0.23 — Qualification gates
+# Bousy Player v0.24 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.23 adds explicit stalled-seek retry, decoder-safe EOF replay and compiled Android session lifecycle instrumentation; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.24 fixes failed-startup decoder ownership, bounds status-read recovery and adds Android fake-decoder lifecycle coverage; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
@@ -15,8 +15,9 @@ Scope: standalone BousyPlayer private repository. v0.23 adds explicit stalled-se
 | v0.20 bounded decoder retries + background memory release | PASS: [GitHub Actions #22](https://github.com/Vaydelux/BousyPlayer/actions/runs/43016568018), 84 session checks and two verified APKs |
 | v0.21 Media3 local MKV silent-stall fallback / position retention | PASS: [GitHub Actions #23](https://github.com/Vaydelux/BousyPlayer/actions/runs/43021579698), 97 session regressions |
 | v0.22 playback phase and explicit backward seek regression gates | PASS: [GitHub Actions #24](https://github.com/Vaydelux/BousyPlayer/actions/runs/43026999771), 102 session checks |
-| v0.23 stalled-seek retry and clean EOF restart | PENDING v0.23 GitHub Actions workflow |
-| v0.23 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
+| v0.23 stalled-seek retry and clean EOF restart | PASS: [GitHub Actions #25](https://github.com/Vaydelux/BousyPlayer/actions/runs/43036121213), 108 session checks and both ABIs |
+| v0.24 decoder ownership, transient snapshot fault tolerance | PENDING v0.24 GitHub Actions workflow |
+| v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
 | v0.18 Android on-demand memory/FD probe | SOURCE IMPLEMENTED; hardware sampling NOT RUN |

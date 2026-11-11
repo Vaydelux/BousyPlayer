@@ -1,8 +1,8 @@
-# Bousy Player v0.23 — Android TV / phone / tablet
+# Bousy Player v0.24 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.22 passed [GitHub Actions #24](https://github.com/Vaydelux/BousyPlayer/actions/runs/43026999771), including 102 session regressions, native adapter simulations, Android tests/lint and verified ARM32/ARM64 debug APKs. v0.23 adds explicit manual stalled-seek retry, native-safe EOF restart and compile-only Android decoder lifecycle instrumentation. Its new CI run must pass before v0.23 is considered build-qualified. Physical playback remains unverified.
+> **Qualification status:** v0.23 passed [GitHub Actions #25](https://github.com/Vaydelux/BousyPlayer/actions/runs/43036121213), with 108 playback-session checks, native adapter simulations, Android unit tests and lint, and verified ARM32/ARM64 APKs. v0.24 fixes failed-startup decoder ownership and adds a bounded, private decoder-status read recovery policy; a new green CI run is required to qualify v0.24. Android device playback and instrumented test execution remain outstanding.
 
 ## v0.13 core hardening
 
@@ -90,6 +90,14 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Device lifecycle instrumentation added:** A new Android `PlayerSessionLifecycleInstrumentedTest` uses a fake decoder in an actual Android context to assert background/UI-hidden memory cleanup is idempotent, that returning to foreground never autoplays, that explicit Play restores the prior offset, and that switching engines preserves Pause. CI compiles the Android instrumentation APK, but it is **not run** without a device/emulator.
 - **Regression gates:** Expanded real PlayerSession JVM smoke tests for EOF recreation, manual seek retry success/failure, target preservation and decoder allocation count, plus UI source guards and Android compilation/lint/ABI verification. Real codec and ARM32 endurance testing still remain.
 
+## v0.24 — Decoder ownership and snapshot fault recovery
+
+- **No dangling native engine after startup failure:** An engine is not assigned to the foreground session until its first `snapshot()` succeeds. If native startup succeeds but the initial status read throws, the candidate is released and the session retains no reference to that dead decoder. Another permitted candidate can still be attempted under the existing automatic-only startup policy.
+- **Recover from transient native snapshot failures:** One or two consecutive exceptions from the active decoder's status read temporarily disable stale seek/track controls without allocating another engine. A third consecutive exception marks a fatal playback-state error, pauses the decoder and releases audio focus. Successful reads reset the consecutive streak.
+- **Privacy-safe local diagnostics:** The Options drawer shows bounded total and consecutive snapshot read faults, without exception text, media URI, stream credential, filename, logs or network transmission. Counts reset their consecutive portion when a new decoder is constructed.
+- **Regression coverage:** Mandatory JVM PlayerSession fake tests cover initial status read failure, single-release ownership, two transient exceptions, successful recovery and controlled fatal behavior after three failures followed by explicit Retry. New Android instrumentation sources cover failed-first-snapshot ownership and transient recovery using a fake decoder; these tests are compiled in CI, **not executed** on a connected device.
+- **Release gate:** Android lint, unit/session/native adapter tests, per-ABI debug APK ZIP/ELF validation and SHA256 checksums still gate each prerelease. Real-world MKV/TS decoder compatibility, device lifecycle, and long-session ARM32 behavior remain unverified.
+
 ## Current source capabilities
 
 - Cinematic dark UI with responsive phone/tablet/TV layout and D-pad keys.
@@ -140,7 +148,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.23 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.24 results.
 
 ## Scope / known limitations
 
@@ -149,7 +157,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.23 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.24 progress report.
 
 ## Repository and downloads
 
