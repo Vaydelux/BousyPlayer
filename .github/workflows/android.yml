@@ -28,6 +28,7 @@ jobs:
           python3 tools/check-manifest.py
           python3 tools/check-ui.py
           python3 tools/test-verify-apk.py
+          python3 tools/test-native-inventory.py
           python3 - <<'PYXML'
           from pathlib import Path
           from xml.etree import ElementTree as ET

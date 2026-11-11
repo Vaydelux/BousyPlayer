@@ -25,6 +25,7 @@ jobs:
           python3 tools/check-manifest.py
           python3 tools/check-ui.py
           python3 tools/test-verify-apk.py
+          python3 tools/test-native-inventory.py
           python3 - <<'PYXML'
           from pathlib import Path
           from xml.etree import ElementTree as ET
@@ -59,23 +60,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="debug-v0.27-${GITHUB_SHA:0:8}"
+          tag="debug-v0.28-${GITHUB_SHA:0:8}"
           mkdir -p dist
           for abi in armeabi-v7a arm64-v8a; do
             cp "app/build/outputs/apk/debug/app-$abi-debug.apk" \
-               "dist/BousyPlayer-v0.27-$abi-debug.apk"
+               "dist/BousyPlayer-v0.28-$abi-debug.apk"
           done
           # Publish a resolved Maven SBOM and OSV report alongside each APK.
           cp app/build/reports/security/debug-maven-sbom.cdx.json \
-             dist/BousyPlayer-v0.27-maven-sbom.cdx.json
+             dist/BousyPlayer-v0.28-maven-sbom.cdx.json
           cp app/build/reports/security/osv-findings.json \
-             dist/BousyPlayer-v0.27-osv-report.json
+             dist/BousyPlayer-v0.28-osv-report.json
+          cp app/build/reports/security/debug-native-inventory.json \
+             dist/BousyPlayer-v0.28-native-inventory.json
+          cp app/build/reports/security/debug-native-file-sbom.cdx.json \
+             dist/BousyPlayer-v0.28-native-file-sbom.cdx.json
           # Checksums cover exactly the APKs and security reports being uploaded.
           (cd dist && sha256sum *.apk *.json > SHA256SUMS.txt)
           gh release create "$tag" dist/*.apk dist/*.json dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
-            --title "Bousy Player v0.27 ABI Debug (${GITHUB_SHA:0:8})" \
-            --notes "ARM32 and ARM64 APKs. Gradle compilation, session/native-adapter regression suites, Android unit tests and lint, ZIP and ELF checks, resolved Maven SBOM, OSV vulnerability gate and SHA256 manifest passed. Native playback and remote controls are not yet hardware-verified." \
+            --title "Bousy Player v0.28 ABI Debug (${GITHUB_SHA:0:8})" \
+            --notes "ARM32 and ARM64 APKs. Gradle compilation, session/native-adapter regression suites, Android unit tests and lint, ZIP and ELF checks, Maven SBOM, OSV gate, shipped ELF integrity/hardening inventory, native-file SBOM and checksums passed. Native playback and remote controls are not yet hardware-verified." \
             --prerelease
 
       # Print diagnostics to the job log instead of uploading quota-limited artifacts.
