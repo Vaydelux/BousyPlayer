@@ -208,7 +208,7 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = 18.dp)
             ) {
-                Text("Seek not confirmed. Try seeking again or select another engine.",
+                Text("Seek not confirmed. Open More to retry this seek or choose an engine.",
                     Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     color = CinemaColor.text)
             }
@@ -254,7 +254,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                                     Text(session.kind.label, color = CinemaColor.muted,
                                         style = MaterialTheme.typography.labelSmall)
                                 }
-                                ActionButton("Restart", { session.startOver(); activate() }, enabled = screen.canSeek)
+                                ActionButton("Restart", { session.startOver(); activate() },
+                                    enabled = screen.canSeek || screen.ended)
                             }
                         }
                     } else {
@@ -268,7 +269,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                                 Text("${session.kind.label}  ·  ${if (screen.canSeek) "Seekable" else "Live / non-seekable"}",
                                     color = CinemaColor.muted, style = MaterialTheme.typography.labelSmall)
                             }
-                            ActionButton("Start over", { session.startOver(); activate() }, enabled = screen.canSeek)
+                            ActionButton("Start over", { session.startOver(); activate() },
+                                enabled = screen.canSeek || screen.ended)
                         }
                     }
                 }
@@ -369,6 +371,12 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                             "${session.playbackStatus.phaseDurationMs / 1000L}s",
                             color = CinemaColor.muted,
                             style = MaterialTheme.typography.labelSmall)
+                        if (session.playbackStatus.phase == PlaybackPhase.SEEK_DELAYED && screen.canSeek) {
+                            ActionButton("Retry pending seek", {
+                                session.retryPendingSeek()
+                                activate()
+                            }, modifier = Modifier.fillMaxWidth())
+                        }
                         Text("Session health · on-device only", color = CinemaColor.muted)
                         Text("Buffered polls: ${health.bufferingPercent}% of ${health.samples} · " +
                             "Errors: ${health.errorEvents} · Engine handoffs: ${health.engineHandoffs} · " +

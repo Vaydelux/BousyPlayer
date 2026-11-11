@@ -22,8 +22,10 @@ assert 'view.keepScreenOn = false' in source, 'view release must clear keep-scre
 print('PASS: paused/finished player screen releases keep-awake')
 
 buttons = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/PlayerScreen.kt').read_text()
-for name in ('Restart', 'Start over', '−10', '+10', '−10s', '+10s'):
+for name in ('−10', '+10', '−10s', '+10s'):
     assert re.search(r'ActionButton\("' + re.escape(name) + r'".*?enabled\s*=\s*screen\.canSeek\)', buttons, re.S), f'{name} must be disabled if media is not seekable'
+for name in ('Restart', 'Start over'):
+    assert re.search(r'ActionButton\("' + re.escape(name) + r'".*?enabled\s*=\s*screen\.canSeek\s*\|\|\s*screen\.ended\)', buttons, re.S), f'{name} must be available after EOF'
 home = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/HomeScreen.kt').read_text()
 assert 'enabled = enabled' in home, 'ActionButton must respect disabled state'
 print('PASS: seek buttons disabled when native demuxer reports non-seekable media')
@@ -90,3 +92,8 @@ assert 'PlaybackPhase.SEEK_DELAYED' in source, 'nonfatal seek-delay guidance mis
 assert 'session.playbackStatus.phase.label' in source, 'player options must show playback phase'
 assert 'phaseTracker.explicitSeekRequested(clockMs())' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'explicit seek watchdog missing'
 print('PASS: startup/rebuffer/seek-delay UI and safe playback phase diagnostics')
+
+assert 'ActionButton("Retry pending seek"' in source, 'manual stalled-seek recovery control missing'
+assert 'session.retryPendingSeek()' in source, 'manual retry must not rebuild decoder'
+assert 'fun retryPendingSeek(): Boolean' in Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text(), 'bounded pending-seek retry API missing'
+print('PASS: explicit EOF replay and user-triggered seek recovery controls')

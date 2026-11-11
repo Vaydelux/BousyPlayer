@@ -28,7 +28,14 @@ class FakeEngine(val type: EngineKind, val chronology: MutableList<String>) : Pl
     override fun play() { playingRequested = true; current = current.copy(isPlaying = !stalledOnPlay) }
     override fun pause() { pauseCalls++; playingRequested = false; current = current.copy(isPlaying = false) }
     var delaySeek = false
+    var seekCalls = 0
+    var failNextSeek = false
     override fun seek(positionMs: Long) {
+        seekCalls++
+        if (failNextSeek) {
+            failNextSeek = false
+            throw IllegalStateException("synthetic native seek failure")
+        }
         if (!delaySeek) current = current.copy(position = positionMs)
     }
     override fun speed(value: Float) = Unit
@@ -110,6 +117,14 @@ fun main() {
     focus.refresh()
     verify("end of file releases global audio focus", AudioFocusCoordinator.abandonCount > 0)
     verify("end of file disarms playback intent", !focus.wantsPlay)
+    active.current = active.current.copy(canSeek = false)
+    focus.refresh()
+    focus.startOver()
+    verify("explicit Start Over after EOF recreates decoder rather than seeking finished native engine",
+        focusEngines.size == 2 && active.released == 1 && active.seekCalls == 0)
+    verify("restarted EOF video begins at 0 with explicit Play intent",
+        focusEngines.last().loadStartMs == 0L && focus.wantsPlay &&
+        focusEngines.last().playingRequested)
     focus.close()
 
     val asyncStore = RecentStore().also { it.update(media("async.ts"), 51_000L, 300_000L) }
@@ -744,6 +759,21 @@ fun main() {
     verify("backward seek delay warns without replacing decoder",
         backwards.playbackStatus.phase == PlaybackPhase.SEEK_DELAYED &&
         backwardsEngines.size == 1 && backwards.wantsPlay)
+    verify("user-requested retry resends the same target without decoder allocation",
+        backwards.retryPendingSeek() && backwardsNative.seekCalls == 2 &&
+        backwardsEngines.size == 1 && backwardsNative.playingRequested)
+    verify("manual retry resets seek-delay timer without marking a stale timestamp accepted",
+        backwards.playbackStatus.phase == PlaybackPhase.SEEKING &&
+        backwards.seekDisplayPosition() == 18_000L)
+    verify("retry is disabled before a second delay threshold",
+        !backwards.retryPendingSeek() && backwardsNative.seekCalls == 2)
+    backwardsClock = 24_000L
+    backwards.refresh()
+    backwardsNative.failNextSeek = true
+    verify("failed seek retry preserves pending target and does not restart native player",
+        !backwards.retryPendingSeek() && backwardsNative.seekCalls == 3 &&
+        backwardsEngines.size == 1 &&
+        backwards.seekDisplayPosition() == 18_000L)
     backwardsNative.current = backwardsNative.current.copy(position = 18_000L)
     backwards.refresh()
     verify("native acknowledgement clears delayed seek warning",

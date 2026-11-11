@@ -423,7 +423,39 @@ class PlayerSession(
             else if (deltaMs < 0L && from < Long.MIN_VALUE - deltaMs) Long.MIN_VALUE
             else from + deltaMs)
     }
-    fun startOver() = seekTo(0L)
+    fun startOver() {
+        if (closed) return
+        if (snapshot.ended) {
+            // A decoder at EOF can reject even a technically seekable 0:00
+            // request. Explicit Restart must create a clean source at zero,
+            // just like pressing Play on a finished file.
+            wantsPlay = true
+            suspendedByFocus = false
+            open(index, 0L)
+            return
+        }
+        seekTo(0L)
+    }
+
+    /**
+     * User-triggered recovery for an explicitly requested seek that has not
+     * been acknowledged after 12 active seconds. Never replace the decoder,
+     * gain playback intent, switch engines, or clear the pending target.
+     */
+    fun retryPendingSeek(): Boolean {
+        if (closed || playbackStatus.phase != PlaybackPhase.SEEK_DELAYED ||
+            !awaitingExplicitSeek || !snapshot.canSeek || snapshot.duration <= 0L) return false
+        val active = engine ?: return false
+        val target = SourcePolicy.clampSeek(lastAttemptedPositionMs, snapshot.duration)
+        if (runCatching { active.seek(target) }.isFailure) {
+            message = "Seek request failed. Try a different engine if the issue continues."
+            return false
+        }
+        phaseTracker.explicitSeekRequested(clockMs())
+        refresh()
+        message = "Seek requested again; waiting for decoder confirmation."
+        return true
+    }
     fun changeSpeed(next: Float) {
         speed = next.coerceIn(0.5f, 2f)
         runCatching { engine?.speed(speed) }
