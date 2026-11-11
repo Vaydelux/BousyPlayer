@@ -6,6 +6,7 @@ bash tools/check-session.sh
 bash tools/check-model.sh
 bash tools/check-native.sh
 python3 tools/check-ui.py
+python3 tools/check-theme-contrast.py
 python3 tools/check-manifest.py
 python3 tools/check-release-metadata.py
 python3 tools/test-native-inventory.py

@@ -34,7 +34,13 @@ import kotlinx.coroutines.delay
 enum class PlayerMenu { NONE, OPTIONS, TRACKS, QUEUE }
 
 @Composable
-fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: () -> Unit) {
+fun PlayerScreen(
+    session: PlayerSession,
+    onClose: () -> Unit,
+    onPickSubtitle: () -> Unit,
+    selectedTheme: CinemaTheme,
+    onThemeSelected: (CinemaTheme) -> Unit
+) {
     var hudVisible by remember(session) { mutableStateOf(true) }
     var menu by remember(session) { mutableStateOf(PlayerMenu.NONE) }
     var interaction by remember(session) { mutableIntStateOf(0) }
@@ -109,7 +115,7 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)
         // The preview key handler must wrap the focused surface / button descendants.
         .onPreviewKeyEvent { event ->
             if (event.nativeKeyEvent.action != KeyEvent.ACTION_DOWN) return@onPreviewKeyEvent false
@@ -156,6 +162,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
         .then(if (menu == PlayerMenu.NONE && !hudVisible)
             Modifier.focusRequester(surfaceFocus).focusable() else Modifier)
     ) {
+        val compactOverlay = maxWidth < 600.dp
+        val chromePadding = if (compactOverlay) 12.dp else 26.dp
         val active = session.engine
         if (active != null) {
             key(active) {
@@ -213,9 +221,13 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                     color = CinemaColor.text)
             }
         }
-        screen.error?.let { error ->
-            Column(Modifier.align(Alignment.Center).background(CinemaColor.panel, MaterialTheme.shapes.large)
-                .padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        screen.error?.let { _ ->
+            Column(Modifier.align(Alignment.Center)
+                .fillMaxWidth(if (compactOverlay) .94f else .72f)
+                .widthIn(max = 600.dp)
+                .background(CinemaColor.panel, MaterialTheme.shapes.large)
+                .padding(if (compactOverlay) 12.dp else 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Playback unavailable", color = CinemaColor.text, fontWeight = FontWeight.Bold)
                 val diagnostic = session.diagnostic
                 Text(diagnostic?.guidance ?: "Playback stopped. Try Retry or another engine.",
@@ -225,12 +237,24 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                         style = MaterialTheme.typography.labelSmall)
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ActionButton("Retry", { session.retry(); activate() })
-                    EngineKind.entries.filter { it != session.kind }.forEach { other ->
-                        ActionButton("Try ${other.label}", {
-                            session.switchEngine(other); activate()
-                        }, highlighted = true)
+                if (compactOverlay) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActionButton("Retry", { session.retry(); activate() },
+                            modifier = Modifier.fillMaxWidth())
+                        EngineKind.entries.filter { it != session.kind }.forEach { other ->
+                            ActionButton("Try ${other.label}", {
+                                session.switchEngine(other); activate()
+                            }, highlighted = true, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        ActionButton("Retry", { session.retry(); activate() })
+                        EngineKind.entries.filter { it != session.kind }.forEach { other ->
+                            ActionButton("Try ${other.label}", {
+                                session.switchEngine(other); activate()
+                            }, highlighted = true)
+                        }
                     }
                 }
             }
@@ -239,14 +263,14 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
             Column(
                 Modifier.fillMaxWidth().align(Alignment.TopCenter)
                     .background(CinemaColor.background.copy(alpha = .80f))
-                    .padding(horizontal = 26.dp, vertical = 15.dp)
+                    .padding(horizontal = chromePadding, vertical = 15.dp)
             ) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     if (maxWidth < 570.dp) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                ActionButton("‹", onClose)
+                                ActionButton("‹", onClose, accessibilityLabel = "Back to library")
                                 Column(Modifier.weight(1f)) {
                                     Text(session.source.title, color = CinemaColor.text,
                                         fontWeight = FontWeight.Bold, maxLines = 1,
@@ -261,7 +285,7 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ActionButton("‹  Back", onClose)
+                            ActionButton("‹  Back", onClose, accessibilityLabel = "Back to library")
                             Column(Modifier.weight(1f)) {
                                 Text(session.source.title, color = CinemaColor.text,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
@@ -278,7 +302,7 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
             Column(
                 Modifier.fillMaxWidth().align(Alignment.BottomCenter)
                     .background(CinemaColor.background.copy(alpha = .90f))
-                    .padding(horizontal = 26.dp, vertical = 14.dp)
+                    .padding(horizontal = chromePadding, vertical = 14.dp)
             ) {
                 if (screen.duration > 0) {
                     val target = if (scrubTarget >= 0) scrubTarget else
@@ -312,7 +336,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                                 ActionButton(if (session.wantsPlay) "❚❚" else "▶", {
                                     session.playPause(); activate()
                                 }, highlighted = true,
-                                    modifier = Modifier.weight(1.25f).focusRequester(transportFocus))
+                                    modifier = Modifier.weight(1.25f).focusRequester(transportFocus),
+                                    accessibilityLabel = if (session.wantsPlay) "Pause playback" else "Play video")
                                 ActionButton("+10", { session.seekBy(10_000); activate() },
                                     modifier = Modifier.weight(1f), enabled = screen.canSeek)
                             }
@@ -345,7 +370,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
         }
         if (menu != PlayerMenu.NONE) {
             Column(
-                Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(min = 290.dp, max = 390.dp)
+                Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                    .width(maxWidth.coerceAtMost(390.dp))
                     .background(CinemaColor.panel.copy(alpha = .98f))
                     .then(if (menu == PlayerMenu.QUEUE) Modifier
                         else Modifier.verticalScroll(rememberScrollState()))
@@ -361,7 +387,8 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                     }, modifier = Modifier.weight(1f), color = CinemaColor.text,
                         style = MaterialTheme.typography.titleMedium)
                     ActionButton("✕", { menu = PlayerMenu.NONE; activate() },
-                        modifier = Modifier.focusRequester(menuFocus))
+                        modifier = Modifier.focusRequester(menuFocus),
+                        accessibilityLabel = "Close player menu")
                 }
                 HorizontalDivider(color = CinemaColor.panelLight)
                 when (menu) {
@@ -417,6 +444,29 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
                             ActionButton("${if (session.kind == other) "✓  " else ""}${other.label}", {
                                 session.switchEngine(other); activate()
                             }, modifier = Modifier.fillMaxWidth())
+                        }
+                        if (PlaybackRecoveryPolicy.offerManualRecovery(
+                                session.playbackStatus.phase,
+                                session.playbackStatus.phaseDurationMs,
+                                session.wantsPlay,
+                                screen.error != null
+                            )) {
+                            Text("Playback has been buffering for a while. " +
+                                "Recovery restarts the decoder only when you choose it.",
+                                color = CinemaColor.muted,
+                                style = MaterialTheme.typography.bodySmall)
+                            ActionButton("Recover stalled playback", {
+                                session.retry()
+                                activate()
+                            }, highlighted = true, modifier = Modifier.fillMaxWidth())
+                        }
+                        Text("Appearance · ${selectedTheme.label}", color = CinemaColor.muted)
+                        CinemaTheme.entries.forEach { choice ->
+                            ActionButton("${if (selectedTheme == choice) "✓  " else ""}${choice.label}", {
+                                onThemeSelected(choice)
+                                activate()
+                            }, highlighted = selectedTheme == choice,
+                                modifier = Modifier.fillMaxWidth())
                         }
                         Text("Playback speed", color = CinemaColor.muted)
                         listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { value ->

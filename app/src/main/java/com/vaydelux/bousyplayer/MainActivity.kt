@@ -1,5 +1,6 @@
 package com.vaydelux.bousyplayer
 
+import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
@@ -20,6 +21,7 @@ import com.vaydelux.bousyplayer.model.MediaSource
 import com.vaydelux.bousyplayer.model.HistoryPolicy
 import com.vaydelux.bousyplayer.model.SourcePolicy
 import com.vaydelux.bousyplayer.ui.BousyPlayerTheme
+import com.vaydelux.bousyplayer.ui.CinemaTheme
 import com.vaydelux.bousyplayer.ui.HomeScreen
 import com.vaydelux.bousyplayer.ui.PlayerScreen
 
@@ -45,9 +47,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incoming = if (intent?.action == Intent.ACTION_VIEW) intent?.data else null
+        val appearance = getSharedPreferences("appearance_v1", Context.MODE_PRIVATE)
         setContent {
-            BousyPlayerTheme {
-                PlayerApp(this@MainActivity, incoming) { incoming = null }
+            // User theme choice survives process death without retaining URLs or media.
+            var selectedTheme by remember {
+                mutableStateOf(CinemaTheme.fromStored(appearance.getString("theme", null)))
+            }
+            BousyPlayerTheme(theme = selectedTheme) {
+                PlayerApp(this@MainActivity, incoming,
+                    clearIncoming = { incoming = null },
+                    selectedTheme = selectedTheme,
+                    onThemeSelected = { next ->
+                        selectedTheme = next
+                        appearance.edit().putString("theme", next.name).apply()
+                    })
             }
         }
     }
@@ -73,7 +86,13 @@ private fun titleForUri(activity: ComponentActivity, uri: Uri): String {
 }
 
 @Composable
-private fun PlayerApp(activity: MainActivity, incoming: Uri?, clearIncoming: () -> Unit) {
+private fun PlayerApp(
+    activity: MainActivity,
+    incoming: Uri?,
+    clearIncoming: () -> Unit,
+    selectedTheme: CinemaTheme,
+    onThemeSelected: (CinemaTheme) -> Unit
+) {
     val recentsStore = remember { RecentStore(activity) }
     var recents by remember { mutableStateOf(recentsStore.readAccessible()) }
     // Construct a new session only AFTER releasing the old one. Keeping a PlayerSession
@@ -193,10 +212,13 @@ private fun PlayerApp(activity: MainActivity, incoming: Uri?, clearIncoming: () 
             onClearHistory = {
                 recentsStore.clear()
                 recents = emptyList()
-            }
+            },
+            selectedTheme = selectedTheme,
+            onThemeSelected = onThemeSelected
         )
     } else {
         PlayerScreen(session = activeSession, onClose = { leavePlayer() },
-            onPickSubtitle = { subtitlePicker.launch(arrayOf("*/*")) })
+            onPickSubtitle = { subtitlePicker.launch(arrayOf("*/*")) },
+            selectedTheme = selectedTheme, onThemeSelected = onThemeSelected)
     }
 }

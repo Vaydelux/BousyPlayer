@@ -1,4 +1,4 @@
-# Bousy Player v0.28 — Qualification gates
+# Bousy Player v0.29 — Qualification gates
 
 Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objects in both ABI APKs and blocks executable stacks, writable/executable segments, text relocations, and cross-ABI mismatches. It does NOT determine native upstream versions or CVE status, device playback or production signing.
 
@@ -20,7 +20,8 @@ Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objec
 | v0.25 latched snapshot failure and no false engine fallback | PASS: [GitHub Actions #32](https://github.com/Vaydelux/BousyPlayer/actions/runs/43047420473) |
 | v0.26 privacy controls, URL validation and isolated CI release | PASS: [main release #1](https://github.com/Vaydelux/BousyPlayer/actions/runs/43066908229) |
 | v0.27 CycloneDX Maven inventory and fail-closed OSV | PASS: [main release #2](https://github.com/Vaydelux/BousyPlayer/actions/runs/43070243504) |
-| v0.28 shipped ELF hashes/Build IDs, hardening checks, native file SBOM | PENDING v0.28 CI and main prerelease |
+| v0.28 shipped ELF hashes/Build IDs, hardening checks, native file SBOM | PASS: [main release #3](https://github.com/Vaydelux/BousyPlayer/actions/runs/43076247076) |
+| v0.29 shared themes, adaptive compact recovery UI, manual prolonged buffer handling | PENDING v0.29 CI and main debug prerelease; no device UI verification |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -69,3 +70,7 @@ The first v0.27 scan correctly **failed** on the Guava `33.3.1-android` advisory
 ## v0.28 security verification
 
 `tools/native_inventory.py` verifies every packaged ELF shared object directly from both debug APKs, rejecting invalid ABI/type/endianness, duplicate or asymmetric libraries, executable stack, RWX loads and text relocations. Outputs per-ABI SHA-256, GNU Build ID, DT_NEEDED, RELRO metadata and a CycloneDX file SBOM. `tools/test-native-inventory.py` exercises both ELF classes and negative hardening fixtures. Neither automation certifies native library CVE status, reproducibility or Android runtime behavior.
+
+## v0.29 additional qualification
+
+The same Maven advisory, native ELF, two APK, Android lint, JVM session/native smoke, and unit test gates apply. New JUnit and standalone JVM smoke checks require buffer recovery to be offered only when the user requested Play and REBUFFERING lasted at least 15 seconds; it never automatically calls Retry. Static UI guards verify shared persisted appearance and viewport-bounded recovery panels. Color contrast, D-pad traversal and small-screen layout remain to be validated on actual emulators/devices.

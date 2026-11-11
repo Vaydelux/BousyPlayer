@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,13 +27,16 @@ fun ActionButton(
     onClick: () -> Unit,
     highlighted: Boolean = false,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    accessibilityLabel: String? = null
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 52.dp)
+            .then(if (accessibilityLabel == null) Modifier else
+                Modifier.semantics { contentDescription = accessibilityLabel })
             .onFocusChanged { hasFocus = it.isFocused }
             .border(if (hasFocus) BorderStroke(3.dp, CinemaColor.accent)
                 else BorderStroke(0.dp, Color.Transparent), RoundedCornerShape(15.dp)),
@@ -49,19 +54,40 @@ fun HomeScreen(
     onPickFiles: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onRecent: (RecentStore.Entry) -> Unit,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    selectedTheme: CinemaTheme,
+    onThemeSelected: (CinemaTheme) -> Unit
 ) {
     var isUrlDialogOpen by remember { mutableStateOf(false) }
     var isClearHistoryDialogOpen by remember { mutableStateOf(false) }
+    var isThemeDialogOpen by remember { mutableStateOf(false) }
     var url by remember { mutableStateOf("") }
     val valid = SourcePolicy.isValidNetworkUrl(url)
     BoxWithConstraints(Modifier.fillMaxSize().background(CinemaColor.background)) {
         val compact = maxWidth < 600.dp
+        val extraCompact = maxWidth < 380.dp
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (compact) 18.dp else 36.dp, vertical = 24.dp)
         ) {
-            Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge, color = CinemaColor.accent)
+            if (extraCompact) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
+                        color = CinemaColor.accent)
+                    TextButton(onClick = { isThemeDialogOpen = true }) {
+                        Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("BOUSY  /  PLAYER", style = MaterialTheme.typography.labelLarge,
+                        color = CinemaColor.accent)
+                    TextButton(onClick = { isThemeDialogOpen = true }) {
+                        Text("Theme · ${selectedTheme.label}", color = CinemaColor.text)
+                    }
+                }
+            }
             Spacer(Modifier.height(16.dp))
             Text("Every frame deserves a great player.", style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold, color = CinemaColor.text)
@@ -129,6 +155,31 @@ fun HomeScreen(
             Text("MP4 • MKV • TS • HLS / DASH • Audio & subtitles • 3 playback engines",
                 style = MaterialTheme.typography.labelSmall, color = CinemaColor.muted)
         }
+    }
+    if (isThemeDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isThemeDialogOpen = false },
+            title = { Text("Choose appearance") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CinemaTheme.entries.forEach { option ->
+                        ActionButton(
+                            "${if (selectedTheme == option) "✓  " else ""}${option.label}",
+                            onClick = {
+                                onThemeSelected(option)
+                                isThemeDialogOpen = false
+                            },
+                            highlighted = selectedTheme == option,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { isThemeDialogOpen = false }) { Text("Close") }
+            }
+        )
     }
     if (isClearHistoryDialogOpen) {
         AlertDialog(
