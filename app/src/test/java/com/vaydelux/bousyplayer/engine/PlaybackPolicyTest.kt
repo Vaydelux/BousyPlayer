@@ -88,6 +88,24 @@ class PlaybackPolicyTest {
         assertFalse(PlaybackPolicy.shouldAutoFallbackMatroska(
             EngineKind.MEDIA3, false, true, true, false, true, true))
     }
+    @Test fun restoredPlaybackRequiresPersistedLocalDocumentGrant() {
+        assertTrue(SessionRestorePolicy.canRestore(
+            "content://provider/videos/123", setOf("content://provider/videos/123")))
+        assertFalse(SessionRestorePolicy.canRestore(
+            "content://provider/videos/123", emptySet()))
+        assertFalse(SessionRestorePolicy.canRestore(
+            "https://example.test/live.ts", setOf("https://example.test/live.ts")))
+        assertFalse(SessionRestorePolicy.canRestore(
+            "content://" + "a".repeat(3000), setOf("content://" + "a".repeat(3000))))
+        assertEquals(140, SessionRestorePolicy.safeTitle("x".repeat(300)).length)
+    }
+    @Test fun diagnosticsNeverExposeRawMediaSource() {
+        val info = PlaybackDiagnosticPolicy.from(
+            EngineKind.VLC, "cannot decode https://private.test/video?token=secret")
+        assertEquals("BP-VLC-DECODER", info.code)
+        assertFalse(info.guidance.contains("private.test"))
+        assertFalse(info.guidance.contains("token="))
+    }
     @Test fun queueIsLimitedBeforeBuildingTvControls() {
         assertEquals(QueuePolicy.MAX_ITEMS, QueuePolicy.bounded((1..1000).toList()).size)
         assertEquals(listOf(1, 2), QueuePolicy.bounded(listOf(1, 2)))

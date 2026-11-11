@@ -459,5 +459,42 @@ fun main() {
     verify("remote seek hint advances to intended 1:32 even if native timeline lags",
         hint.seekDisplayPosition() == 92_000L)
     hint.close()
+    // An Android-recreated Activity should restore a saved SAF video as paused.
+    val recoveredStore = RecentStore().also {
+        it.update(media("restored.mp4"), 61_000L, 300_000L)
+    }
+    val recoveredEngines = mutableListOf<FakeEngine>()
+    val recovered = PlayerSession(ctx, listOf(media("restored.mp4")), 0,
+        recoveredStore, initialPlay = false) { selected ->
+        FakeEngine(selected, mutableListOf()).also(recoveredEngines::add)
+    }
+    verify("recreated video is initially paused with no forced autoplay",
+        !recovered.wantsPlay && !recoveredEngines.last().playingRequested)
+    verify("recreated video retains persisted Continue Watching offset",
+        recoveredEngines.last().loadStartMs == 61_000L)
+    recovered.play()
+    verify("restored video can play only after user action",
+        recovered.wantsPlay && recoveredEngines.last().playingRequested)
+    recovered.close()
+
+    val invalidTrackSession = PlayerSession(ctx, listOf(media("track.mp4")), 0,
+        RecentStore()) { selected -> FakeEngine(selected, mutableListOf()) }
+    invalidTrackSession.setTrack("outdated:99", TrackKind.SUBTITLE)
+    verify("stale subtitle-track IDs are rejected with user feedback",
+        invalidTrackSession.message?.contains("no longer available") == true)
+    invalidTrackSession.close()
+
+    val errorSession = PlayerSession(ctx, listOf(media("diagnostic.mp4")), 0,
+        RecentStore()) { selected ->
+        FakeEngine(selected, mutableListOf()).also {
+            it.current = it.current.copy(error = "codec failed for /sensitive/path")
+        }
+    }
+    errorSession.refresh()
+    verify("error diagnostic has a stable code but no media path",
+        errorSession.diagnostic?.code == "BP-MEDIA3-DECODER" &&
+        !errorSession.diagnostic!!.guidance.contains("/sensitive/"))
+    errorSession.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

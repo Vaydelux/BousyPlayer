@@ -1,13 +1,14 @@
-# Bousy Player v0.15 — Qualification gates
+# Bousy Player v0.16 — Qualification gates
 
-Scope: standalone BousyPlayer private repository. v0.15 replaces the queue with lazy composition and protects MPV resumes against delayed seekability and stale seek races; remote hardware still unverified. This is an automated build qualification, **not** device or codec certification.
+Scope: standalone BousyPlayer private repository. v0.16 adds permission-checked paused Activity recreation, privacy-safe diagnostics and subtitle-track validation; hardware remains unverified. This is an automated build qualification, **not** device or codec certification.
 
 | Gate | Evidence and status |
 |---|---|
 | v0.11 whole-app build | PASS: [GitHub Actions build #8](https://github.com/Vaydelux/BousyPlayer/actions/runs/42982351716), Kotlin/Gradle, unit tests, lint, APK assembly, ARM native ELF presence |
 | v0.13 core-hardening Android build | PASS: [CI #11](https://github.com/Vaydelux/BousyPlayer/actions/runs/42987656674) |
 | v0.14 session + native Gradle smoke tests | PASS: [GitHub Actions #12](https://github.com/Vaydelux/BousyPlayer/actions/runs/42988411347), 64 session checks and native surface simulations |
-| v0.15 delayed MPV resume and TV queue source gates | PENDING v0.15 GitHub Actions workflow |
+| v0.15 delayed MPV resume and TV queue source gates | PASS: [GitHub Actions #14](https://github.com/Vaydelux/BousyPlayer/actions/runs/42989807568) |
+| v0.16 permission-bound saved state and diagnostic/track gates | PENDING v0.16 GitHub Actions workflow |
 | v0.14 SHA-256 checksum manifest | PASS: [v0.14 prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.14-743f04bc) |
 | v0.12 ABI-split APK build | PASS: [GitHub Actions build #10](https://github.com/Vaydelux/BousyPlayer/actions/runs/42984416569), both debug APKs published |
 | v0.12 per-ABI ZIP / DEX / ELF | PASS: 13 ELF objects per APK, 83.18 MB ARM32 and 89.52 MB ARM64 in CI #10 |

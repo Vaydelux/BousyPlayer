@@ -11,9 +11,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.vaydelux.bousyplayer.data.RecentStore
 import com.vaydelux.bousyplayer.engine.PlayerSession
 import com.vaydelux.bousyplayer.engine.QueuePolicy
+import com.vaydelux.bousyplayer.engine.SessionRestorePolicy
 import com.vaydelux.bousyplayer.model.MediaSource
 import com.vaydelux.bousyplayer.model.SourcePolicy
 import com.vaydelux.bousyplayer.ui.BousyPlayerTheme
@@ -60,15 +62,52 @@ private fun PlayerApp(activity: ComponentActivity, incoming: Uri?, clearIncoming
     // Construct a new session only AFTER releasing the old one. Keeping a PlayerSession
     // inside remember(queue) can briefly overlap two large native decoder instances.
     var session by remember { mutableStateOf<PlayerSession?>(null) }
-    fun openSources(sources: List<MediaSource>) {
+    // Android saves only the current SAF document identifier/title, never an HTTPS URL,
+    // transient content intent, or a large queue. SavedState is not a long-term database.
+    var savedDocumentUri by rememberSaveable { mutableStateOf("") }
+    var savedDocumentTitle by rememberSaveable { mutableStateOf("") }
+    fun rememberActiveDocument(current: MediaSource?) {
+        val safe = current?.takeIf {
+            it.isDocument && it.uri.scheme == "content" &&
+                it.uri.toString().length <= SessionRestorePolicy.MAX_URI_LENGTH
+        }
+        savedDocumentUri = safe?.uri?.toString().orEmpty()
+        savedDocumentTitle = safe?.title?.let(SessionRestorePolicy::safeTitle).orEmpty()
+    }
+    fun openSources(sources: List<MediaSource>, restored: Boolean = false) {
         if (sources.isEmpty()) return
         session?.close()
-        session = PlayerSession(activity, QueuePolicy.bounded(sources), 0, recentsStore)
+        session = PlayerSession(activity, QueuePolicy.bounded(sources), 0,
+            recentsStore, initialPlay = !restored)
+        rememberActiveDocument(session?.source)
     }
     fun leavePlayer() {
         session?.close()
         session = null
+        rememberActiveDocument(null)
         recents = recentsStore.readAccessible()
+    }
+
+    LaunchedEffect(Unit) {
+        // Never resume a newly received VIEW intent with a stale saved document.
+        val storedUri = savedDocumentUri
+        if (incoming == null && storedUri.isNotBlank() && session == null) {
+            val granted = runCatching {
+                activity.contentResolver.persistedUriPermissions
+                    .asSequence().filter { it.isReadPermission }
+                    .map { it.uri.toString() }.toSet()
+            }.getOrDefault(emptySet())
+            if (SessionRestorePolicy.canRestore(storedUri, granted)) {
+                openSources(listOf(MediaSource(Uri.parse(storedUri),
+                    SessionRestorePolicy.safeTitle(savedDocumentTitle), true)), restored = true)
+            } else {
+                rememberActiveDocument(null)
+            }
+        }
+    }
+    LaunchedEffect(session?.index, session) {
+        val current = session?.source ?: return@LaunchedEffect
+        rememberActiveDocument(current)
     }
 
     val filePicker = rememberLauncherForActivityResult(

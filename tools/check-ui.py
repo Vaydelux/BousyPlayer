@@ -39,3 +39,13 @@ assert 'Modifier.focusRequester(queueFocus)' in source, 'queue must restore TV r
 assert 'if (menu == PlayerMenu.QUEUE) Modifier' in source, 'LazyColumn must not be nested in unbounded vertical scroll'
 assert 'session.seekDisplayPosition()' in source, 'remote seek preview must reflect pending target'
 print('PASS: lazy queue TV focus, bounded scroll and pending-seek preview guards')
+
+assert 'session.diagnostic' in source, 'error UI must render safe diagnostics'
+assert 'Text(error,' not in source, 'raw decoder error text must not be rendered'
+activity = Path('app/src/main/java/com/vaydelux/bousyplayer/MainActivity.kt').read_text()
+assert 'rememberSaveable' in activity, 'active local document must survive Activity recreation'
+assert 'SessionRestorePolicy.canRestore' in activity, 'restore needs persisted URI grant validation'
+assert 'initialPlay = !restored' in activity, 'restored videos may not autoplay'
+assert 'rememberActiveDocument(null)' in activity, 'leaving the player must clear saved restoration'
+assert 'savedDocumentUri' in activity and 'savedDocumentTitle' in activity, 'save only one local document'
+print('PASS: safe diagnostic display and paused/permission-bound activity restoration')

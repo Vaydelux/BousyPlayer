@@ -15,6 +15,8 @@ class PlayerSession(
     val playlist: List<MediaSource>,
     initialIndex: Int,
     private val recents: RecentStore,
+    // A recovered Activity must never unexpectedly restart audio/video.
+    private val initialPlay: Boolean = true,
     // Monotonic clock injectable for deterministic startup-stall regression tests.
     private val clockMs: () -> Long = { System.nanoTime() / 1_000_000L },
     // Allows deterministic ownership/failure tests without loading Android native codecs.
@@ -40,7 +42,7 @@ class PlayerSession(
         private set
     var message by mutableStateOf<String?>(null)
         private set
-    var wantsPlay by mutableStateOf(true)
+    var wantsPlay by mutableStateOf(initialPlay)
         private set
     private var externalSubtitle: Uri? = null
     private var closed = false
@@ -134,6 +136,9 @@ class PlayerSession(
         require(playlist.isNotEmpty())
         kind = EngineKind.preferredFor(source.title, source.uri.lastPathSegment.orEmpty())
         open(index, null)
+        if (!initialPlay && engine != null) {
+            message = "Previous local video restored. Press Play to continue."
+        }
     }
 
     private fun captureCurrentProgress() {
@@ -195,7 +200,7 @@ class PlayerSession(
                 }
                 message = when {
                     focusDenied -> "Audio focus unavailable: press Play to try again"
-                    candidate != selected -> "${selected.label} unavailable; using Media3 for this file"
+                    candidate != selected -> "${selected.label} unavailable; using ${candidate.label}"
                     else -> null
                 }
                 snapshot = next.snapshot()
@@ -363,20 +368,50 @@ class PlayerSession(
         aspect = next
         runCatching { engine?.aspect(next) }
     }
+    val diagnostic: PlaybackDiagnostic?
+        get() = snapshot.error?.let { PlaybackDiagnosticPolicy.from(kind, it) }
+
     fun setTrack(id: String, type: TrackKind) {
-        runCatching { engine?.selectTrack(id, type) }
+        if (closed) return
+        // Track IDs belong to one engine instance; reject stale menu selections.
+        val track = snapshot.tracks.firstOrNull { it.id == id && it.kind == type }
+        if (track == null) {
+            message = "This track is no longer available. Reopen Audio / CC."
+            return
+        }
+        val active = engine ?: return
+        val failed = runCatching { active.selectTrack(id, type) }.isFailure
+        if (failed) {
+            message = "Track selection failed. Try another audio or subtitle track."
+            return
+        }
         refresh()
+        message = "Requested ${if (type == TrackKind.AUDIO) "audio" else "subtitle"} track. Checking playback..."
     }
     fun disableSubtitles() {
-        runCatching { engine?.disableSubtitles() }
+        if (closed) return
+        val active = engine ?: return
+        val failed = runCatching { active.disableSubtitles() }.isFailure
+        if (failed) {
+            message = "Could not disable captions with this engine."
+            return
+        }
         refresh()
+        message = "Subtitle disable request sent."
     }
     fun addSubtitle(uri: Uri) {
+        if (closed) return
+        if (uri.scheme != "content") {
+            message = "Choose a subtitle through the Android document picker."
+            return
+        }
         externalSubtitle = uri
         val position = latestPosition()
         if (kind != EngineKind.MEDIA3) { kind = EngineKind.MEDIA3; manualEngine = true }
         open(index, position)
-        message = "External subtitle loaded with Media3 (subject to codec support)"
+        if (engine != null && snapshot.error == null) {
+            message = "External subtitle requested through Media3. Check available tracks."
+        }
     }
     fun switchEngine(nextKind: EngineKind) {
         if (closed || nextKind == kind) return

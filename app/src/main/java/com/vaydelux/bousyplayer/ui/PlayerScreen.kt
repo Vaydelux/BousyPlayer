@@ -191,7 +191,13 @@ fun PlayerScreen(session: PlayerSession, onClose: () -> Unit, onPickSubtitle: ()
             Column(Modifier.align(Alignment.Center).background(CinemaColor.panel, MaterialTheme.shapes.large)
                 .padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Playback unavailable", color = CinemaColor.text, fontWeight = FontWeight.Bold)
-                Text(error, color = CinemaColor.muted)
+                val diagnostic = session.diagnostic
+                Text(diagnostic?.guidance ?: "Playback stopped. Try Retry or another engine.",
+                    color = CinemaColor.muted)
+                diagnostic?.let {
+                    Text("Diagnostic: ${it.code}", color = CinemaColor.muted,
+                        style = MaterialTheme.typography.labelSmall)
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     ActionButton("Retry", { session.retry(); activate() })

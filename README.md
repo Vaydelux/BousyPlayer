@@ -1,8 +1,8 @@
-# Bousy Player v0.15 — Android TV / phone / tablet
+# Bousy Player v0.16 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.14 passed [GitHub Actions #12](https://github.com/Vaydelux/BousyPlayer/actions/runs/42988411347), including 64 session checks, native adapter smoke, Android lint and two APKs. v0.15 changes MPV delayed seek and TV queue UI; require the new CI run before declaring it passed. No device playback has yet been certified.
+> **Qualification status:** v0.15 passed [GitHub Actions #14](https://github.com/Vaydelux/BousyPlayer/actions/runs/42989807568), including 66 session regression checks, Kotlin, lint and split-ABI APKs. v0.16 adds permission-bound paused restore, safe diagnostic classification and track validation. Its new CI run must pass before these changes are build-qualified; hardware remains unverified.
 
 ## v0.13 core hardening
 
@@ -26,6 +26,13 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Explicit seek wins:** A user-triggered ±10-second/timeline seek cancels the old pending saved-resume seek after the native command succeeds. A stale delayed callback may never override the user's chosen position.
 - **Accurate hidden HUD seek feedback:** The on-screen seek indicator reflects the requested target, not an early native 0:02 timestamp.
 - **CI enforcement:** The real MPV engine source and PlayerSession source now run through expanded JVM native/session smoke tests, along with Kotlin/Android lint, unit tests and split-ABI APK checks. **Physical remote control and real MKV/TS behavior remain unverified.**
+
+## v0.16 — Crash-resilient playback and safe diagnostics
+
+- On Android Activity recreation, restore only the last open **persistently granted SAF document** from bounded saved-instance state, and resume in **Pause**, never automatically playing sound/video. Continue Watching provides the saved timeline position. No HTTPS URLs, expired file grants, external VIEW-only documents, or large playlists are preserved in the state bundle. Closing the player clears that restoration.
+- The playback error screen now displays a deterministic support code and a fixed actionable explanation rather than raw decoder exception text, URLs or private file paths.
+- Audio/subtitle track requests reject stale track IDs and provide failure/request feedback. External subtitle URIs must come from the document picker; selecting a subtitle requests playback through Media3 without claiming immediate track success.
+- Retains v0.15 lazy TV queue, bounded MPV seek retry and ARM32/ARM64 split APKs. **Android lifecycle and physical-device behavior remain untested.**
 
 ## Current source capabilities
 
@@ -77,7 +84,7 @@ bash tools/build-and-qualify.sh
 
 The build script runs `:session-smoke:run :native-smoke:run :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`, then validates the two outputs: `app-armeabi-v7a-debug.apk` (ARM32) and `app-arm64-v8a-debug.apk` (ARM64). Each APK is checked for only its intended native ABI, native mpv/VLC ELF architecture, ZIP integrity and DEX. This is not an installation or playback test.
 
-The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.15 results.
+The [Android debug qualification workflow](.github/workflows/android.yml) runs on each push and pull request. A passing `main` build publishes both per-ABI debug APKs as a **private-repository prerelease**, avoiding the account's currently full Actions artifact storage. Previous v0.11 run #8 passed; refer to the latest Actions run for v0.16 results.
 
 ## Scope / known limitations
 
@@ -86,7 +93,7 @@ The [Android debug qualification workflow](.github/workflows/android.yml) runs o
 - Native engine HTTPS redirects have not been security audited; do not rely on them for untrusted or DRM-protected sources. Automatic fallback is deliberately restricted to local content; it does not retry arbitrary remote streams.
 - Physical ARM32/ARM64 tests, 2-hour low-RAM soak tests, external subtitle styling across all engines, real headset/Bluetooth switching, and device-specific Android runtime qualification remain to be completed.
 
-See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.15 progress report.
+See `docs/ARCHITECTURE.md`, `docs/QUALIFICATION.md` and the v0.16 progress report.
 
 ## Repository and downloads
 

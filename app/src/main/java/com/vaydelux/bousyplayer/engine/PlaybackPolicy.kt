@@ -110,3 +110,47 @@ object QueuePolicy {
     const val MAX_ITEMS = 96
     fun <T> bounded(items: List<T>): List<T> = items.take(MAX_ITEMS)
 }
+
+/** No raw player errors, media URLs, or filenames appear in support diagnostics. */
+data class PlaybackDiagnostic(val code: String, val guidance: String)
+
+object PlaybackDiagnosticPolicy {
+    fun from(kind: EngineKind, rawError: String): PlaybackDiagnostic {
+        val category = when {
+            rawError.contains("focus", ignoreCase = true) -> "AUDIO"
+            rawError.contains("subtitle", ignoreCase = true) ||
+                rawError.contains("caption", ignoreCase = true) -> "TEXT"
+            rawError.contains("timeout", ignoreCase = true) ||
+                rawError.contains("timed out", ignoreCase = true) -> "STARTUP"
+            rawError.contains("document", ignoreCase = true) ||
+                rawError.contains("permission", ignoreCase = true) ||
+                rawError.contains("source", ignoreCase = true) -> "SOURCE"
+            rawError.contains("codec", ignoreCase = true) ||
+                rawError.contains("decode", ignoreCase = true) ||
+                rawError.contains("media3", ignoreCase = true) -> "DECODER"
+            else -> "PLAYBACK"
+        }
+        val guidance = when (category) {
+            "AUDIO" -> "Audio is unavailable. Check the sound output, then retry."
+            "TEXT" -> "The selected subtitle track could not be applied."
+            "STARTUP" -> "The player did not start. Try Retry or another engine."
+            "SOURCE" -> "The media source could not be opened. Check file access or network."
+            "DECODER" -> "This engine could not decode the video. Try another engine."
+            else -> "Playback stopped unexpectedly. Try Retry or another engine."
+        }
+        return PlaybackDiagnostic("BP-${kind.name}-$category", guidance)
+    }
+}
+
+/** Only an Android-restored, previously granted local document may be reopened. */
+object SessionRestorePolicy {
+    const val MAX_URI_LENGTH = 2_048
+    const val MAX_TITLE_LENGTH = 140
+
+    fun canRestore(uri: String, readGrants: Set<String>): Boolean =
+        uri.length in 11..MAX_URI_LENGTH && uri.startsWith("content://") &&
+            uri in readGrants
+
+    fun safeTitle(title: String): String =
+        title.take(MAX_TITLE_LENGTH).ifBlank { "Previous video" }
+}

@@ -44,6 +44,22 @@ fun main() {
         !PlaybackPolicy.shouldAutoFallbackMatroska(EngineKind.MEDIA3,false,true,true,true,false,true))
     checkNamed("network streams never use local MKV fallback",
         !PlaybackPolicy.shouldAutoFallbackMatroska(EngineKind.MEDIA3,false,false,true,false,false,true))
+    checkNamed("saved state never restores network URLs",
+        !SessionRestorePolicy.canRestore("https://example.test/movie.m3u8",
+            setOf("https://example.test/movie.m3u8")))
+    checkNamed("saved state rejects revoked document grants",
+        !SessionRestorePolicy.canRestore("content://provider/video", emptySet()))
+    checkNamed("saved state accepts granted SAF document",
+        SessionRestorePolicy.canRestore("content://provider/video",
+            setOf("content://provider/video")))
+    checkNamed("saved state bounds title size",
+        SessionRestorePolicy.safeTitle("X".repeat(500)).length == 140)
+    checkNamed("diagnostic hides signed URL and file name", run {
+        val error = "Decoder failed for https://private.example/video.mkv?token=secret"
+        val detail = PlaybackDiagnosticPolicy.from(EngineKind.MEDIA3, error)
+        !detail.code.contains("private") && !detail.guidance.contains("token") &&
+        detail.code == "BP-MEDIA3-DECODER"
+    })
     checkNamed("queue bounded to 96 entries on low RAM TVs",
         QueuePolicy.bounded((1..1000).toList()).size == 96)
     checkNamed("auto Media3 avoids pointless retries", PlaybackPolicy.engineCandidates(EngineKind.MEDIA3,false) == listOf(EngineKind.MEDIA3))
