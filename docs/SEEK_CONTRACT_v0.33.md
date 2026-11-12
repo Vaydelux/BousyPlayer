@@ -35,3 +35,7 @@ LibVLC's previous `snapshot()` swallowed native `time`, `length`, `isPlaying` an
 ## Dependency availability preflight correction
 
 A previously hard-coded Kotlin 2.0.21 POM fetch in both Android Actions jobs returned HTTP 404 on November 12, 2026, preventing any of the actual Gradle/build/signer tests from running. The standalone probe was removed: dependency resolution by Gradle itself remains mandatory, followed by the fail-closed resolved-Maven OSV security gate. Availability and security are therefore checked for **real dependencies** instead of an unrelated fixed POM. No vulnerability checks were disabled.
+
+## v0.33 publisher version-gate corrective action
+
+The first main-only v0.33 publish run (GitHub Actions 43148927598) successfully completed Android build, native smoke, OSV scan, dual-ABI signing checks and artifact preparation, but failed closed before publication: the workflow's new release manifest `create` and `verify` commands still passed `--version 0.32.0`, while the APK filenames were v0.33. The verifier correctly rejected missing v0.32 names. This patch aligns both CLI version arguments with `app/build.gradle.kts` version 0.33.0 and extends the fast static `tools/check-release-metadata.py` guard to require both publisher invocations to match that version. Future accidental partial version bumps now fail before Gradle/OSV/full Android build.
