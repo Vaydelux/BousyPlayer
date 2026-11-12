@@ -1,4 +1,4 @@
-# Bousy Player v0.34 — Qualification gates
+# Bousy Player v0.35 — Qualification gates
 
 Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objects in both ABI APKs and blocks executable stacks, writable/executable segments, text relocations, and cross-ABI mismatches. It does NOT determine native upstream versions or CVE status, device playback or production signing.
 
@@ -26,7 +26,8 @@ Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objec
 | v0.31 background poll suspension, trusted seek snapshots, non-destructive SAF history | RELEASED: [v0.31 assets](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.31-77d2d708); hardware tests not run |
 | v0.32 split-ABI signer consistency and exact release asset hash/commit manifest | INCLUDED: [v0.33 release](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.33-3d678030), nine assets and signing checks |
 | v0.33 native seek rejection, trusted timeline preservation and CI supersession | PASS: [main release workflow](https://github.com/Vaydelux/BousyPlayer/actions/runs/43150233944), 149 session regressions, OSV clean, two APKs |
-| v0.34 background memory-trim pending-seek integrity and lifecycle control fence | PENDING v0.34 CI and debug prerelease; hardware not run |
+| v0.34 background memory-trim pending-seek integrity and lifecycle control fence | PASS: [v0.34 main CI](https://github.com/Vaydelux/BousyPlayer/actions/runs/43155687706) and [nine-asset debug prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.34-c88e70da), 160 session checks |
+| v0.35 Android 35 x86_64 emulator ActivityScenario, PlayerSession and SAF tests | PENDING new PR emulator job; no physical ARM TV coverage |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -111,3 +112,10 @@ A pending explicit seek or saved Continue Watching resume must remain **unconfir
 Late Android TV remote/Compose callbacks for start-over, queue navigation, switching engines, tracks, subtitles and speed/aspect changes are inert in the stopped state; `open()` itself has a fail-closed background ownership guard. Existing checked foreground/release lifecycle remains unchanged. The deterministic Kotlin JVM suite exercises these state transitions and tracks native read/release counts.
 
 The read-only PR and branch workflows, main-only release workflow and its offline manifest/signing tests still apply. Android instrumentation remains compile-only. Physical TV memory trim, vendor-specific callback ordering, hardware codecs, native dependency provenance and production signing remain unverified.
+
+## v0.35 Android emulator qualification — independent job
+
+- On PRs, a read-only `emulator-instrumentation` job starts an Android API 35 Google APIs x86_64 emulator with KVM acceleration, installs a special **CI-only** x86_64 split generated using `-PciEmulatorAbi=true`, and executes `:app:connectedDebugAndroidTest`.
+- The instrumentation tests operate on actual Android framework objects and ActivityScenario. Existing Activity lifecycle, PlayerSession fake-decoder, SAF privacy checks and the new UI-hidden pending-seek/memory-trim regression are executed. Tests do **not** open native MPV/VLC hardware streams, assert decoder-ABI compatibility, or exercise OEM D-pad remotes.
+- A PR must pass **both** its normal two-ABI, OSV, signing, native inventory/checksum gate and its emulator job; a skipped/failed emulator job cannot be called runtime-qualified. Branch-only push checks remain fast and read-only. Main-only publisher preserves the ARM32/ARM64 two-APK limit and validates the same nine security assets.
+- Full production qualification additionally requires physical low-RAM ARM32/ARM64 devices, native codec samples (TS/MKV/HLS), actual remote/focus/caption controls, memory/FD soak tests, manufacturer-specific lifecycle behavior, protected production signing and redistributable native licenses.
