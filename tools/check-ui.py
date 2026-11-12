@@ -206,3 +206,16 @@ for field in ('native.time', 'native.length', 'native.isPlaying', 'native.isSeek
 assert 'val nativePosition = native.time.coerceAtLeast(0L)' in vlcStatusSnapshot, 'LibVLC timeline must propagate failures to session status policy'
 assert 'LibVLC snapshot read faults propagate' in smokeSource, 'Missing LibVLC transient snapshot failure regression'
 print('PASS: failed LibVLC native timeline/control reads never manufacture valid status')
+
+# v0.34 lifecycle ownership and native timeline checkpoint rules.
+sessionV34 = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+assert 'if (closed || backgrounded || newIndex !in playlist.indices)' in sessionV34, 'Decoder open must never allocate while backgrounded'
+assert 'val wasAwaitingTimeline = !resumePositionAcknowledged || pendingSeekToStart' in sessionV34, 'Memory trim must keep pending unconfirmed seeks'
+assert 'lastAttemptedPositionMs = resumeTarget' in sessionV34 and 'resumePositionAcknowledged = !wasAwaitingTimeline' in sessionV34, 'Memory trim must not turn unconfirmed seeks into confirmed timelines'
+assert 'if (engine == null || !source.isDocument' in sessionV34, 'Synthetic status cannot be persisted after decoder release'
+assert 'if (!backgrounded) captureCurrentProgress()' in sessionV34, 'Hidden session close must not repoll native engine'
+assert 'backgrounded controls cannot replace decoder' in sessionSmoke, 'Missing late remote callback tests'
+assert 'memory trim never reads a decoder' in sessionSmoke, 'Missing memory trim status-read regression'
+assert 'trim preserves pending user target' in sessionSmoke, 'Missing synthetic seek checkpoint test'
+assert 'pending saved resume survives trim' in sessionSmoke, 'Missing memory-trim saved-resume test'
+print('PASS: v0.34 background lifecycle gates and unconfirmed timeline preservation')

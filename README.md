@@ -1,8 +1,8 @@
-# Bousy Player v0.33 — Android TV / phone / tablet
+# Bousy Player v0.34 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.32 release-integrity safeguards merged into main (commit c33504f2), but the main-only GitHub release job was still queued at the last verification; its signer/asset verification and APK output remain unverified. v0.33 introduces explicit native seek rejection and CI concurrency hygiene. v0.33 full Android CI and hardware qualification are pending.
+> **Qualification status:** v0.33 passed [main-only publishing CI](https://github.com/Vaydelux/BousyPlayer/actions/runs/43150233944) and released [debug-v0.33-3d678030](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.33-3d678030) with both ARM debug APKs, signer checks and nine checked assets. v0.34 strengthens UI-hidden decoder ownership and protects pending seek/resume positions during Android memory trimming; its CI and real-device qualification are pending.
 
 ## v0.13 core hardening
 
@@ -172,6 +172,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Tested negative behavior:** Real mpv/LibVLC adapters run under native-surface fakes that toggle seekability immediately before a manual command. The actual PlayerSession runs against a throwing engine and verifies no fabricated pending seek or history overwrite. Media3 has a source-level policy check plus Android compilation.
 - **CI resource discipline:** Each newer commit cancels older **same-event** feature-branch or PR checks, rather than wasting GitHub Actions runner time on superseded source revisions. Push and PR checks remain separate; main-only prerelease publishing is unchanged. This cannot fix a provider-level Actions scheduling backlog.
 - Hardware codec, remote, low-RAM soak, and v0.32/v0.33 production signing are still not certified.
+
+
+## v0.34 — Background memory/seek integrity and stale-control isolation
+
+- **No synthetic Continue Watching checkpoints:** Android UI-hidden memory trimming no longer converts an unconfirmed 2:30 seek target into a trusted decoder timestamp or overwrites the last confirmed 0:40 checkpoint. The requested target remains available in memory for explicit foreground Play without being saved as achieved progress.
+- **Last real checkpoint on STOP:** Once the Activity is backgrounded, memory pressure and Close do not request another native status read. ON_STOP already paused and checkpointed the decoder; saving after release requires an active decoder and authoritative timeline.
+- **Complete background command fence:** Late media-key/Compose callbacks cannot switch engines, navigate the playlist, restart EOF, change tracks/captions, or allocate new decoders until ON_START. The internal open path also rejects calls from a stopped session. Explicit foreground controls still work.
+- **Deterministic regression coverage:** Actual PlayerSession JVM tests inject a held seek, a provisional 0:00 saved resume, late remote commands, trim, Close and foreground reopen. They require no extra hidden native poll, no unintended autoplay, and no fabricated resume progress.
+- **Qualification scope:** Simulations and APK CI guard these invariants, but actual OEM memory-trim order, real remote behavior and long ARM32 playback endurance still need physical-device testing.
 
 
 ## Current source capabilities

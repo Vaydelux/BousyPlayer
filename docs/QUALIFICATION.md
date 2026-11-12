@@ -1,4 +1,4 @@
-# Bousy Player v0.33 — Qualification gates
+# Bousy Player v0.34 — Qualification gates
 
 Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objects in both ABI APKs and blocks executable stacks, writable/executable segments, text relocations, and cross-ABI mismatches. It does NOT determine native upstream versions or CVE status, device playback or production signing.
 
@@ -24,8 +24,9 @@ Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objec
 | v0.29 shared themes, adaptive compact recovery UI, manual prolonged buffer handling | PASS: [main release #4](https://github.com/Vaydelux/BousyPlayer/actions/runs/43080232006) |
 | v0.30 transport command exception safety, stale recovery guard, timeline continuity | PASS: [main release #5](https://github.com/Vaydelux/BousyPlayer/actions/runs/43087769302) |
 | v0.31 background poll suspension, trusted seek snapshots, non-destructive SAF history | RELEASED: [v0.31 assets](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.31-77d2d708); hardware tests not run |
-| v0.32 split-ABI signer consistency and exact release asset hash/commit manifest | MERGED: [PR #8](https://github.com/Vaydelux/BousyPlayer/pull/8), release qualification queued |
-| v0.33 native seek rejection, trusted timeline preservation and CI supersession | PENDING v0.33 CI, no hardware certification |
+| v0.32 split-ABI signer consistency and exact release asset hash/commit manifest | INCLUDED: [v0.33 release](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.33-3d678030), nine assets and signing checks |
+| v0.33 native seek rejection, trusted timeline preservation and CI supersession | PASS: [main release workflow](https://github.com/Vaydelux/BousyPlayer/actions/runs/43150233944), 149 session regressions, OSV clean, two APKs |
+| v0.34 background memory-trim pending-seek integrity and lifecycle control fence | PENDING v0.34 CI and debug prerelease; hardware not run |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
@@ -102,3 +103,11 @@ The APK signatures must pass Android SDK 36 `apksigner verify` for both ABIs, us
 The source contract for Media3, LibVLC and libmpv now defines a user-issued seek as **rejected** when the native engine is no longer seekable at command time. The engine does not silently return to the session pretending the seek was accepted. The session catches the rejection, preserves the previously confirmed playback position, does not create a false pending target and displays stable guidance without media identifiers. Real mpv/LibVLC Kotlin adapter fakes test the command path; Android compilation validates the Media3 adaptation; fake PlayerSession tests verify saved-position continuity.
 
 PR/push Android qualification now has event-and-ref-scoped cancellation for obsolete runs. This is an operational efficiency measure rather than a substitute for missing CI results, and does not change main-only APK publishing credentials. Hosted Actions can still be delayed by external queues. Real-device seeking remains to be qualified.
+
+## v0.34 background trim / saved-resume acceptance
+
+A pending explicit seek or saved Continue Watching resume must remain **unconfirmed** until readable native status acknowledges it. ON_STOP already commits the last trustworthy native sample. A subsequent `TRIM_MEMORY_UI_HIDDEN` must release the decoder exactly once, never call native `snapshot()` again, keep any unconfirmed target for a **user-triggered foreground reopen**, and never write that target as achieved playback progress. Closing a stopped or trimmed session must not read a released decoder or persist an invented position.
+
+Late Android TV remote/Compose callbacks for start-over, queue navigation, switching engines, tracks, subtitles and speed/aspect changes are inert in the stopped state; `open()` itself has a fail-closed background ownership guard. Existing checked foreground/release lifecycle remains unchanged. The deterministic Kotlin JVM suite exercises these state transitions and tracks native read/release counts.
+
+The read-only PR and branch workflows, main-only release workflow and its offline manifest/signing tests still apply. Android instrumentation remains compile-only. Physical TV memory trim, vendor-specific callback ordering, hardware codecs, native dependency provenance and production signing remain unverified.

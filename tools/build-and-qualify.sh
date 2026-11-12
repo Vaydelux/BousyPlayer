@@ -32,7 +32,7 @@ python3 tools/test-native-inventory.py
 python3 tools/native_inventory.py \
   --arm32 app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk \
   --arm64 app/build/outputs/apk/debug/app-arm64-v8a-debug.apk \
-  --version 0.33.0 \
+  --version 0.34.0 \
   --inventory app/build/reports/security/debug-native-inventory.json \
   --sbom app/build/reports/security/debug-native-file-sbom.cdx.json
 
