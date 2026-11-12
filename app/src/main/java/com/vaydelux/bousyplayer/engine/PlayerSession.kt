@@ -230,7 +230,9 @@ class PlayerSession(
     }
 
     private fun open(newIndex: Int, requestedPosition: Long?) {
-        if (closed || newIndex !in playlist.indices) return
+        // Even if a future UI callback misses its own guard, hidden Activities
+        // cannot allocate new native players or reacquire Android audio focus.
+        if (closed || backgrounded || newIndex !in playlist.indices) return
         val switchingItem = newIndex != index
         if (switchingItem) {
             nativeStartupFallbackAttempted = false
@@ -486,7 +488,9 @@ class PlayerSession(
         refresh()
     }
     fun pause() {
-        if (closed) return
+        // ON_STOP already performed the final pause/checkpoint before marking
+        // backgrounded. Late media-key callbacks must not touch a hidden decoder.
+        if (closed || backgrounded) return
         wantsPlay = false
         suspendedByFocus = false
         if (runCatching { engine?.pause() }.isFailure) {
@@ -527,7 +531,7 @@ class PlayerSession(
             else from + deltaMs)
     }
     fun startOver() {
-        if (closed) return
+        if (closed || backgrounded) return
         if (snapshot.ended) {
             // A decoder at EOF can reject even a technically seekable 0:00
             // request. Explicit Restart must create a clean source at zero,
@@ -546,7 +550,7 @@ class PlayerSession(
      * gain playback intent, switch engines, or clear the pending target.
      */
     fun retryPendingSeek(): Boolean {
-        if (closed || playbackStatus.phase != PlaybackPhase.SEEK_DELAYED ||
+        if (closed || backgrounded || playbackStatus.phase != PlaybackPhase.SEEK_DELAYED ||
             !awaitingExplicitSeek || !snapshot.canSeek || snapshot.duration <= 0L) return false
         val active = engine ?: return false
         val target = SourcePolicy.clampSeek(lastAttemptedPositionMs, snapshot.duration)
@@ -560,15 +564,17 @@ class PlayerSession(
         return true
     }
     fun changeSpeed(next: Float) {
+        if (closed || backgrounded) return
         speed = next.coerceIn(0.5f, 2f)
         runCatching { engine?.speed(speed) }
     }
     fun changeAspect(next: AspectMode) {
+        if (closed || backgrounded) return
         aspect = next
         runCatching { engine?.aspect(next) }
     }
     fun changeSubtitleAppearance(next: SubtitleAppearance) {
-        if (closed) return
+        if (closed || backgrounded) return
         subtitleAppearance = next
         val accepted = runCatching { engine?.applySubtitleAppearance(next) == true }.getOrDefault(false)
         message = if (accepted) {
@@ -581,7 +587,7 @@ class PlayerSession(
         get() = snapshot.error?.let { PlaybackDiagnosticPolicy.from(kind, it) }
 
     fun setTrack(id: String, type: TrackKind) {
-        if (closed) return
+        if (closed || backgrounded) return
         // Track IDs belong to one engine instance; reject stale menu selections.
         val track = snapshot.tracks.firstOrNull { it.id == id && it.kind == type }
         if (track == null) {
@@ -598,7 +604,7 @@ class PlayerSession(
         message = "Requested ${if (type == TrackKind.AUDIO) "audio" else "subtitle"} track. Checking playback..."
     }
     fun disableSubtitles() {
-        if (closed) return
+        if (closed || backgrounded) return
         val active = engine ?: return
         val failed = runCatching { active.disableSubtitles() }.isFailure
         if (failed) {
@@ -609,7 +615,7 @@ class PlayerSession(
         message = "Subtitle disable request sent."
     }
     fun addSubtitle(uri: Uri) {
-        if (closed) return
+        if (closed || backgrounded) return
         if (uri.scheme != "content") {
             message = "Choose a subtitle through the Android document picker."
             return
@@ -623,7 +629,7 @@ class PlayerSession(
         }
     }
     fun switchEngine(nextKind: EngineKind) {
-        if (closed || nextKind == kind) return
+        if (closed || backgrounded || nextKind == kind) return
         val position = latestPosition()
         kind = nextKind
         manualEngine = true
@@ -632,7 +638,7 @@ class PlayerSession(
         open(index, position)
     }
     private fun goTo(nextIndex: Int) {
-        if (closed || nextIndex !in playlist.indices || nextIndex == index) return
+        if (closed || backgrounded || nextIndex !in playlist.indices || nextIndex == index) return
         wantsPlay = true
         externalSubtitle = null
         if (!manualEngine) kind = EngineKind.preferredFor(
@@ -648,7 +654,7 @@ class PlayerSession(
      * revalidate state on click in case the user paused or buffering ended.
      */
     fun recoverStalledPlayback(): Boolean {
-        if (closed || suspendedByFocus || !PlaybackRecoveryPolicy.offerManualRecovery(
+        if (closed || backgrounded || suspendedByFocus || !PlaybackRecoveryPolicy.offerManualRecovery(
                 playbackStatus.phase, playbackStatus.phaseDurationMs,
                 wantsPlay, snapshot.error != null)) return false
         retry()
@@ -675,7 +681,9 @@ class PlayerSession(
     }
 
     private fun saveProgress() {
-        if (!source.isDocument || consecutiveSnapshotFailures > 0 || snapshotFaultFatal ||
+        // A released decoder has no authoritative playback timestamp. In
+        // particular, memory-trim recovery targets are NOT confirmed progress.
+        if (engine == null || !source.isDocument || consecutiveSnapshotFailures > 0 || snapshotFaultFatal ||
             snapshot.duration <= 0L || snapshot.position < 0L ||
             !acknowledgePosition(snapshot)) return
         if (index == lastSavedIndex &&
@@ -705,10 +713,18 @@ class PlayerSession(
         if (closed || engine == null || !MemoryTrimPolicy.shouldReleaseBackgroundDecoder(level)) return
         // UI_HIDDEN may arrive before Lifecycle ON_STOP; treat it as background.
         if (!backgrounded) onBackground()
-        val position = if (snapshot.ended) 0L else latestPosition()
+        // onBackground() already took the final native status checkpoint.
+        // A second decoder read after ON_STOP is unsafe and may turn a stale
+        // 0:00 status into a seemingly verified pending seek. Keep the user's
+        // pending target for an *explicit* foreground reopen, but do not
+        // manufacture confirmation or write it to Continue Watching.
+        val wasAwaitingTimeline = !resumePositionAcknowledged || pendingSeekToStart
+        val resumeTarget = if (snapshot.ended) 0L else if (wasAwaitingTimeline) {
+            lastAttemptedPositionMs.coerceAtLeast(0L)
+        } else snapshot.position.coerceAtLeast(0L)
         saveProgress()
-        lastAttemptedPositionMs = position
-        resumePositionAcknowledged = true
+        lastAttemptedPositionMs = resumeTarget
+        resumePositionAcknowledged = !wasAwaitingTimeline
         awaitingExplicitSeek = false
         pendingSeekToStart = false
         val old = engine
@@ -719,7 +735,9 @@ class PlayerSession(
         audioFocus.abandon()
         wantsPlay = false
         suspendedByFocus = false
-        snapshot = snapshot.copy(position = position, isPlaying = false, canSeek = false,
+        // Preserve the last native-reported timestamp for display; it may be
+        // provisional. The pending resumeTarget is not a trusted checkpoint.
+        snapshot = snapshot.copy(isPlaying = false, canSeek = false,
             loading = false, error = null, tracks = emptyList())
         phaseTracker.reset()
         playbackStatus = PlaybackPhaseReport(PlaybackPhase.PAUSED)
@@ -727,7 +745,9 @@ class PlayerSession(
     }
     fun close() {
         if (closed) return
-        captureCurrentProgress()
+        // ON_STOP already stored the last confirmed checkpoint. Closing a
+        // hidden Activity should never make a fresh JNI/status call.
+        if (!backgrounded) captureCurrentProgress()
         closed = true
         engine?.let { runCatching { it.release() } }
         engine = null

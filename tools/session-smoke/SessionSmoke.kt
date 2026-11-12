@@ -1149,5 +1149,122 @@ fun main() {
         rejectedSeekEngines.size == beforeBackgroundDecoder && !rejectedSeek.wantsPlay)
     rejectedSeek.close()
 
+    // ON_STOP is an ownership boundary for *all* late UI/remote callbacks,
+    // not just Play/Retry. A queued action cannot switch decoders, change
+    // captions or navigate the queue while the Activity is hidden.
+    val hiddenHistory = RecentStore()
+    val hiddenEngines = mutableListOf<FakeEngine>()
+    val hiddenSession = PlayerSession(ctx, listOf(media("hidden-queue.ts"),
+        media("hidden-episode.mkv")), 0, hiddenHistory) { selected ->
+        FakeEngine(selected, mutableListOf()).also(hiddenEngines::add)
+    }
+    val hiddenNative = hiddenEngines.single()
+    hiddenNative.current = hiddenNative.current.copy(
+        position = 45_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true)
+    hiddenSession.refresh()
+    hiddenSession.onBackground()
+    val readsHidden = hiddenNative.snapshotReads
+    val pausesHidden = hiddenNative.pauseCalls
+    val idxHidden = hiddenSession.index
+    val kindHidden = hiddenSession.kind
+    val speedHidden = hiddenSession.speed
+    val appearanceHidden = hiddenSession.subtitleAppearance
+    hiddenSession.next()
+    hiddenSession.previous()
+    hiddenSession.openPlaylistIndex(1)
+    hiddenSession.switchEngine(EngineKind.VLC)
+    hiddenSession.startOver()
+    hiddenSession.addSubtitle(Uri.parse("content://file/subtitle.srt"))
+    hiddenSession.changeSpeed(1.75f)
+    hiddenSession.changeAspect(AspectMode.ZOOM)
+    hiddenSession.changeSubtitleAppearance(SubtitleAppearance(SubtitleSize.LARGE, SubtitleColor.YELLOW))
+    hiddenSession.disableSubtitles()
+    hiddenSession.setTrack("s:0", TrackKind.SUBTITLE)
+    hiddenSession.pause()
+    verify("backgrounded controls cannot replace decoder, queue, or modify playback settings",
+        hiddenEngines.size == 1 && hiddenSession.index == idxHidden &&
+        hiddenSession.kind == kindHidden && hiddenSession.speed == speedHidden &&
+        hiddenSession.aspect == AspectMode.FIT &&
+        hiddenSession.subtitleAppearance == appearanceHidden &&
+        !hiddenSession.wantsPlay)
+    verify("hidden remote commands cannot poll native status or pause a second time",
+        hiddenNative.snapshotReads == readsHidden && hiddenNative.pauseCalls == pausesHidden)
+    hiddenSession.close()
+    verify("closing a hidden Activity releases once without another native read",
+        hiddenNative.released == 1 && hiddenNative.snapshotReads == readsHidden)
+    
+    // A locally issued seek can remain unconfirmed while a decoder reports
+    // an old timestamp. UI-hidden memory trim must not call readDecoderSnapshot
+    // again, cannot save the requested target as real progress, and must still
+    // retain the user's intent for an explicit foreground Play.
+    val trimSource = media("trim-unconfirmed.mkv")
+    val trimStore = RecentStore().also { it.update(trimSource, 40_000L, 300_000L) }
+    val trimEngines = mutableListOf<FakeEngine>()
+    val trimSession = PlayerSession(ctx, listOf(trimSource), 0, trimStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(trimEngines::add)
+    }
+    val trimNative = trimEngines.single()
+    trimNative.current = trimNative.current.copy(
+        position = 40_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true)
+    trimSession.refresh()
+    trimNative.delaySeek = true
+    verify("unconfirmed seek request is issued before memory trim",
+        trimSession.seekTo(150_000L) &&
+        trimSession.seekDisplayPosition() == 150_000L &&
+        trimNative.current.position == 40_000L)
+    trimSession.onBackground()
+    val readsBeforeTrim = trimNative.snapshotReads
+    trimSession.onMemoryPressure(20)
+    verify("memory trim never reads a decoder after background final checkpoint",
+        trimNative.snapshotReads == readsBeforeTrim && trimNative.released == 1 &&
+        trimSession.engine == null)
+    verify("trim preserves pending user target without falsifying saved progress",
+        trimSession.seekDisplayPosition() == 150_000L &&
+        trimSession.snapshot.position == 40_000L &&
+        trimStore.read().single().positionMs == 40_000L)
+    trimSession.onForeground()
+    verify("trimmed player never autoplays when the Activity reappears",
+        !trimSession.wantsPlay && trimEngines.size == 1)
+    trimSession.play()
+    verify("explicit Play restores unconfirmed seek as a requested resume",
+        trimEngines.size == 2 && trimEngines.last().loadStartMs == 150_000L)
+    trimSession.close()
+
+    // A startup decoder can still show 0:00 while an 82-second saved resume
+    // is pending. Background trim cannot replace the remembered target with 0.
+    val earlyTrimSource = media("trim-resume.ts")
+    val earlyTrimStore = RecentStore().also {
+        it.update(earlyTrimSource, 82_000L, 300_000L)
+    }
+    val earlyTrimEngines = mutableListOf<FakeEngine>()
+    val earlyTrim = PlayerSession(ctx, listOf(earlyTrimSource), 0, earlyTrimStore) { kind ->
+        FakeEngine(kind, mutableListOf()).also(earlyTrimEngines::add)
+    }
+    val earlyTrimNative = earlyTrimEngines.single()
+    earlyTrimNative.current = PlaybackSnapshot(
+        position = 0L, duration = 300_000L, canSeek = true, loading = true)
+    earlyTrim.onBackground()
+    val earlyTrimReads = earlyTrimNative.snapshotReads
+    earlyTrim.onMemoryPressure(20)
+    verify("pending saved resume survives trim without an extra native snapshot",
+        earlyTrimNative.snapshotReads == earlyTrimReads &&
+        earlyTrim.seekDisplayPosition() == 82_000L &&
+        earlyTrimStore.read().single().positionMs == 82_000L)
+    earlyTrim.close()
+    verify("closing trimmed unconfirmed resume cannot persist synthetic zero",
+        earlyTrimStore.read().single().positionMs == 82_000L &&
+        earlyTrimNative.snapshotReads == earlyTrimReads)
+    // The same saved resume remains available for foreground reopen.
+    val restartEngines = mutableListOf<FakeEngine>()
+    val resumeAfterTrim = PlayerSession(ctx, listOf(earlyTrimSource), 0,
+        earlyTrimStore, initialPlay = false) { kind ->
+        FakeEngine(kind, mutableListOf()).also(restartEngines::add)
+    }
+    verify("persistent history retains original pending start position after trim-close",
+        restartEngines.single().loadStartMs == 82_000L && !resumeAfterTrim.wantsPlay)
+    resumeAfterTrim.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }
