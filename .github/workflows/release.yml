@@ -47,12 +47,9 @@ jobs:
           fi
           "$SDKMANAGER" --version
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "platforms;android-36" "build-tools;36.0.0"
-      - name: Verify Maven Central availability
-        run: |
-          curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output /tmp/kotlin-stdlib.pom \
-            https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.0.21/kotlin-stdlib-2.0.21.pom
-          grep -q "<artifactId>kotlin-stdlib</artifactId>" /tmp/kotlin-stdlib.pom
-          echo "Maven Central Kotlin standard library POM reachable"
+      # Gradle resolves actual dependencies; the enforce-mode OSV scan fails
+      # closed on missing repositories or unavailable advisory responses.
+      # Do not probe a hard-coded POM which may be removed upstream.
       - name: Compile, unit test, lint, assemble and inspect APK
         run: bash tools/build-and-qualify.sh
       # Store passing debug APKs as private-repository prerelease assets.

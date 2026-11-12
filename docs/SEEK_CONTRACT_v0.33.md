@@ -31,3 +31,7 @@ The previously hidden-HUD left/right overlay used `screen.canSeek` from the last
 ## LibVLC native snapshot read integrity
 
 LibVLC's previous `snapshot()` swallowed native `time`, `length`, `isPlaying` and `isSeekable` getter failures and substituted a valid-looking `0:00` or Paused/Not Seekable state. A status-read exception is not authoritative playback data. These four critical fields now propagate exceptions to `PlayerSession.readDecoderSnapshot()`, which allows two consecutive transient misses before a latched user-recoverable error and preserves the last trusted progress. Caption-track polling still remains best-effort. Native adapter regression fixtures inject individual getter faults and verify the decoder can recover on a subsequent valid read.
+
+## Dependency availability preflight correction
+
+A previously hard-coded Kotlin 2.0.21 POM fetch in both Android Actions jobs returned HTTP 404 on November 12, 2026, preventing any of the actual Gradle/build/signer tests from running. The standalone probe was removed: dependency resolution by Gradle itself remains mandatory, followed by the fail-closed resolved-Maven OSV security gate. Availability and security are therefore checked for **real dependencies** instead of an unrelated fixed POM. No vulnerability checks were disabled.
