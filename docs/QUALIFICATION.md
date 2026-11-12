@@ -27,7 +27,7 @@ Scope: BousyPlayer private repository. v0.28 inventories actual native ELF objec
 | v0.32 split-ABI signer consistency and exact release asset hash/commit manifest | INCLUDED: [v0.33 release](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.33-3d678030), nine assets and signing checks |
 | v0.33 native seek rejection, trusted timeline preservation and CI supersession | PASS: [main release workflow](https://github.com/Vaydelux/BousyPlayer/actions/runs/43150233944), 149 session regressions, OSV clean, two APKs |
 | v0.34 background memory-trim pending-seek integrity and lifecycle control fence | PASS: [v0.34 main CI](https://github.com/Vaydelux/BousyPlayer/actions/runs/43155687706) and [nine-asset debug prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.34-c88e70da), 160 session checks |
-| v0.35 Android 35 x86_64 emulator ActivityScenario, PlayerSession and SAF tests | PENDING new PR emulator job; no physical ARM TV coverage |
+| v0.35 Android 35 x86_64 emulator ActivityScenario, PlayerSession and SAF tests | First PR emulator run PASS: [7 executed tests](https://github.com/Vaydelux/BousyPlayer/actions/runs/43158222994); final exact-head XML verifier gate and hardware tests remain separate |
 | v0.23/v0.24 PlayerSession Android lifecycle instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.20 ActivityScenario instrumentation | SOURCE + COMPILE ONLY; NOT RUN on device/emulator |
 | v0.19 manual in-memory resource trend | SOURCE IMPLEMENTED; device sampling NOT RUN |
