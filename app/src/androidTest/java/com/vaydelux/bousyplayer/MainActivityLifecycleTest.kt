@@ -7,8 +7,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Device/emulator-only lifecycle regression. CI compiles this suite but does
- * not claim to execute it until Android hardware/emulator qualification.
+ * Activity recreation/trim lifecycle regression executed on the API 35
+ * emulator in PR CI; real TV hardware still needs separate qualification.
  */
 @RunWith(AndroidJUnit4::class)
 class MainActivityLifecycleTest {

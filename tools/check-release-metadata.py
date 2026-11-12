@@ -72,6 +72,16 @@ assert 'pull_request:' not in workflow, 'Release must not trigger from pull requ
 assert 'contents: write' in workflow, 'Main-only publisher needs write scope'
 assert 'bash tools/build-and-qualify.sh' in workflow, 'Publisher must rebuild and qualify APKs'
 assert 'isUniversalApk = false' in gradle, 'Universal ABI APK must be disabled'
+# Real emulator test job must be separate from main-only artifact publishing.
+assert 'emulator-instrumentation:' in qualification_workflow, 'PR must execute Android device instrumentation'
+assert "github.event_name == 'pull_request'" in qualification_workflow, 'Emulator must run on PRs'
+assert 'reactivecircus/android-emulator-runner@v2' in qualification_workflow, 'Android emulator runner missing'
+assert ':app:connectedDebugAndroidTest -PciEmulatorAbi=true' in qualification_workflow, 'Emulator must run compiled Android instrumentation'
+assert 'if (providers.gradleProperty("ciEmulatorAbi").orNull == "true")' in gradle, 'Temporary emulator ABI must be opt-in'
+assert 'include("x86_64")' in gradle, 'x86_64 emulator ABI missing'
+assert '-PciEmulatorAbi=true' not in workflow, 'Main release must not publish x86_64 build'
+assert 'if: github.event_name' in qualification_workflow and 'contents: read' in qualification_workflow, 'Emulator workflow must remain read-only'
+
 assert 'include("armeabi-v7a", "arm64-v8a")' in gradle, 'Expected ARM ABI split configuration missing'
 assert f'debug-v{version.rsplit(".", 1)[0]}-' in workflow and 'gh release create' in workflow, 'CI prerelease publication missing'
 print(f'PASS: source version, README, and CI artifact names match ({version}, code {code})')
