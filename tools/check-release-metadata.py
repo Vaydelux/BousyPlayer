@@ -45,6 +45,16 @@ assert '*.apk *.json > SHA256SUMS.txt' in workflow, 'SBOM and scan reports must 
 assert 'tools/apk_signing.py' in qualification and '--arm32' in qualification and '--arm64' in qualification, 'Both APK signatures must be checked'
 assert 'debug-signing-report.json' in qualification and 'signing-report.json' in workflow, 'Signing evidence must be published'
 assert 'tools/release_integrity.py create' in workflow and 'tools/release_integrity.py verify' in workflow, 'Release manifest must be created and verified'
+# Catch accidental partial version bumps BEFORE an expensive full Android build.
+# The create/verify manifest arguments must both match the actual Gradle version.
+manifest_version_args = re.findall(
+    r'(?m)^\s*--version\s+(\d+\.\d+\.\d+)\s+--commit\s+"\$GITHUB_SHA"',
+    workflow
+)
+assert manifest_version_args == [version, version], (
+    f'Release manifest CLI version mismatch: expected two {version} references, '
+    f'found {manifest_version_args}'
+)
 assert 'release-manifest.json' in (root / 'tools/release_integrity.py').read_text(), 'Release evidence generator missing'
 assert 'tools/test_apk_signing.py' in qualification and 'tools/test_release_integrity.py' in qualification, 'Offline negative security cases missing'
 for source in (qualification_workflow, workflow):

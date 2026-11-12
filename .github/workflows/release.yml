@@ -80,13 +80,13 @@ jobs:
           # Describe the exact assets, complete commit and Actions run. This
           # checksum evidence is not a trusted/signed SLSA attestation.
           python3 tools/release_integrity.py create --dist dist \
-            --version 0.32.0 --commit "$GITHUB_SHA" \
+            --version 0.33.0 --commit "$GITHUB_SHA" \
             --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
           (cd dist && sha256sum *.apk *.json > SHA256SUMS.txt)
           # The release cannot be created until every checksum, asset name,
           # commit, version and source-run identifier is independently checked.
           python3 tools/release_integrity.py verify --dist dist \
-            --version 0.32.0 --commit "$GITHUB_SHA" \
+            --version 0.33.0 --commit "$GITHUB_SHA" \
             --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
           gh release create "$tag" dist/*.apk dist/*.json dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
