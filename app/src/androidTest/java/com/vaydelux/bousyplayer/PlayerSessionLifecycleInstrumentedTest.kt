@@ -13,8 +13,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Requires a connected Android device or emulator. The ordinary GitHub build
- * compiles this suite without claiming that it executed on physical hardware.
+ * Runs on API 35 x86_64 emulator in PR CI, and may also run on devices.
+ * Emulator simulation does not establish physical Android TV / ARM codec behavior.
  *
  * Use an in-memory fake decoder and an unpersisted content URI; this does not
  * open real files or change the user's saved Continue Watching entries.
@@ -25,6 +25,8 @@ class PlayerSessionLifecycleInstrumentedTest {
         override val view: View = View(context)
         var released = 0
         var snapshotFailsRemaining = 0
+        var snapshotReads = 0
+        var delaySeek = false
         var loadedAt = -1L
         var state = PlaybackSnapshot(
             duration = 300_000L, canSeek = true, loading = false
@@ -36,6 +38,7 @@ class PlayerSessionLifecycleInstrumentedTest {
                 loading = false, ended = false, error = null)
         }
         override fun snapshot(): PlaybackSnapshot {
+            snapshotReads++
             if (snapshotFailsRemaining > 0) {
                 snapshotFailsRemaining--
                 throw IllegalStateException("synthetic secret should not appear in UI")
@@ -44,7 +47,9 @@ class PlayerSessionLifecycleInstrumentedTest {
         }
         override fun play() { state = state.copy(isPlaying = true) }
         override fun pause() { state = state.copy(isPlaying = false) }
-        override fun seek(positionMs: Long) { state = state.copy(position = positionMs) }
+        override fun seek(positionMs: Long) {
+            if (!delaySeek) state = state.copy(position = positionMs)
+        }
         override fun speed(value: Float) = Unit
         override fun aspect(value: AspectMode) = Unit
         override fun selectTrack(id: String, kind: TrackKind) = Unit
@@ -81,6 +86,47 @@ class PlayerSessionLifecycleInstrumentedTest {
             player.play()
             assertEquals(2, decoders.size)
             assertEquals(61_000L, decoders.last().loadedAt)
+        } finally {
+            player.close()
+        }
+        assertEquals(1, decoders.last().released)
+    }
+
+
+    @Test
+    fun unconfirmedSeekSurvivesUiHiddenTrimWithoutFakingNativePlayback() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val decoders = mutableListOf<FakeDecoder>()
+        val source = MediaSource(Uri.parse("content://bousyplayer.test/unconfirmed.ts"),
+            "unconfirmed.ts", false)
+        val player = PlayerSession(context, listOf(source), 0, RecentStore(context),
+            initialPlay = false, engineFactory = { kind ->
+                FakeDecoder(context, kind).also(decoders::add)
+            })
+        try {
+            val first = decoders.single()
+            first.state = first.state.copy(
+                position = 34_000L, duration = 300_000L, canSeek = true,
+                isPlaying = false, loading = false)
+            player.refresh()
+            first.delaySeek = true
+            assertTrue(player.seekTo(95_000L))
+            assertEquals(95_000L, player.seekDisplayPosition())
+            assertEquals(34_000L, first.state.position)
+            player.onBackground()
+            val stoppedReads = first.snapshotReads
+            player.onMemoryPressure(20)
+            assertNull(player.engine)
+            assertEquals(1, first.released)
+            assertEquals(stoppedReads, first.snapshotReads)
+            assertEquals(95_000L, player.seekDisplayPosition())
+            assertEquals(34_000L, player.snapshot.position)
+            player.onForeground()
+            assertFalse(player.wantsPlay)
+            assertEquals(1, decoders.size)
+            player.play()
+            assertEquals(2, decoders.size)
+            assertEquals(95_000L, decoders.last().loadedAt)
         } finally {
             player.close()
         }

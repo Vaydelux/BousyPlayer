@@ -11,7 +11,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Compiled by CI; needs a device/emulator to execute. */
+/** Executed on API 35 emulator in PR CI; device/OEM coverage is separate. */
 @RunWith(AndroidJUnit4::class)
 class RecentStorePrivacyInstrumentedTest {
     @Test fun savedHistoryCanBeSanitizedAndClearedWithoutTouchingFiles() {

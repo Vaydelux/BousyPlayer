@@ -1,8 +1,8 @@
-# Bousy Player v0.34 — Android TV / phone / tablet
+# Bousy Player v0.35 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.33 passed [main-only publishing CI](https://github.com/Vaydelux/BousyPlayer/actions/runs/43150233944) and released [debug-v0.33-3d678030](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.33-3d678030) with both ARM debug APKs, signer checks and nine checked assets. v0.34 strengthens UI-hidden decoder ownership and protects pending seek/resume positions during Android memory trimming; its CI and real-device qualification are pending.
+> **Qualification status:** v0.34 passed [main-only CI](https://github.com/Vaydelux/BousyPlayer/actions/runs/43155687706) and published [both debug APKs and all nine security assets](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.34-c88e70da). v0.35 adds an actual Android 35 emulator instrumentation job for PRs with an opt-in x86_64 CI-only APK split. Runtime emulator qualification is **pending until this PR workflow succeeds**. ARM32/ARM64 hardware playback, D-pad and production signing are still not certified.
 
 ## v0.13 core hardening
 
@@ -181,6 +181,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Complete background command fence:** Late media-key/Compose callbacks cannot switch engines, navigate the playlist, restart EOF, change tracks/captions, or allocate new decoders until ON_START. The internal open path also rejects calls from a stopped session. Explicit foreground controls still work.
 - **Deterministic regression coverage:** Actual PlayerSession JVM tests inject a held seek, a provisional 0:00 saved resume, late remote commands, trim, Close and foreground reopen. They require no extra hidden native poll, no unintended autoplay, and no fabricated resume progress.
 - **Qualification scope:** Simulations and APK CI guard these invariants, but actual OEM memory-trim order, real remote behavior and long ARM32 playback endurance still need physical-device testing.
+
+
+## v0.35 — Actual Android emulator instrumentation
+
+- **Run tests, not just compile them:** Every pull request now executes `app/src/androidTest` on an Android 35 Google APIs x86_64 emulator, independently of the existing full ARM32/ARM64 qualification job. ActivityScenario recreation/memory trim, PlayerSession fake-decoder lifecycle and SAF history privacy tests can catch Android-framework issues that JVM-only tests cannot.
+- **CI-only emulator ABI:** A temporary `-PciEmulatorAbi=true` Gradle property adds an x86_64 debug split for the emulator. Default app builds and main-only debug releases remain **ARM32 + ARM64 only**; the emulator binary is never uploaded as a public release asset.
+- **Unconfirmed-seek runtime regression:** An instrumentation case uses the actual PlayerSession and Android lifecycle/snapshot APIs with a fake decoder that delays seeks. It checks UI-hidden trim, no additional native status poll, preservation of the pending target and explicit foreground reopening.
+- **Separate read-only CI job:** The emulator job uses GitHub-hosted KVM when available (otherwise an Android Test Device software-emulation fallback), has no publishing credentials and does not upload large emulator artifacts. A post-run JUnit XML verification step requires seven or more executed tests from all three instrumentation classes, with no failures, errors or skipped tests. PR success requires this job plus the existing source/native/OSV/signature checks.
+- **Scope:** An x86_64 emulator cannot prove ARM32 TV decoder compatibility, D-pad key event behavior on OEM remotes, hardware subtitle overlays, native ARM codec playback or two-hour endurance. Those remain separate release blockers.
 
 
 ## Current source capabilities

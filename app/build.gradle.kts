@@ -10,8 +10,8 @@ android {
         applicationId = "com.vaydelux.bousyplayer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "0.34.0"
+        versionCode = 35
+        versionName = "0.35.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // Two installable debug APKs: no 300MB universal native-library bundle.
@@ -20,6 +20,11 @@ android {
             isEnable = true
             reset()
             include("armeabi-v7a", "arm64-v8a")
+            // CI-only x86_64 binary permits actual Android instrumentation on
+            // a GitHub-hosted emulator. Default/main publishing stays ARM-only.
+            if (providers.gradleProperty("ciEmulatorAbi").orNull == "true") {
+                include("x86_64")
+            }
             isUniversalApk = false
         }
     }
@@ -69,7 +74,8 @@ dependencies {
     implementation("org.videolan.android:libvlc-all:3.6.5")
     implementation("dev.jdtech.mpv:libmpv:1.0.0")
     testImplementation("junit:junit:4.13.2")
-    // Instrumentation tests compile in CI; execution still requires a device/emulator.
+    // CI also executes these tests on an API 35 x86_64 emulator for PRs.
+    // Physical ARM32/ARM64 playback and remote-control qualification remain manual.
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:core:1.6.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
