@@ -1103,5 +1103,51 @@ fun main() {
         staleStore.read().single().positionMs == 43_000L)
     staleSession.close()
 
+    // Session saw seekable=true in a previous snapshot, but the native adapter
+    // rejected the seek at command time. This must not display a fake target.
+    val rejectedSeekEngines = mutableListOf<FakeEngine>()
+    val rejectedSeekSource = media("seek-race.mp4")
+    val rejectedSeekStore = RecentStore().also {
+        it.update(rejectedSeekSource, 57_000L, 300_000L)
+    }
+    val rejectedSeek = PlayerSession(ctx, listOf(rejectedSeekSource), 0,
+        rejectedSeekStore) { selected ->
+        FakeEngine(selected, mutableListOf()).also(rejectedSeekEngines::add)
+    }
+    val rejectedSeekNative = rejectedSeekEngines.single()
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(
+        position = 57_000L, duration = 300_000L, canSeek = true,
+        loading = false, isPlaying = true
+    )
+    rejectedSeek.refresh()
+    rejectedSeekNative.failNextSeek = true
+    val rejectedAtCommand = rejectedSeek.seekTo(112_000L)
+    verify("native rejection cannot create a fake pending seek",
+        !rejectedAtCommand && rejectedSeek.seekDisplayPosition() == 57_000L &&
+        rejectedSeek.message == "Seek request failed. Try again or choose another engine." &&
+        rejectedSeekNative.seekCalls == 1 &&
+        rejectedSeek.playbackStatus.phase != PlaybackPhase.SEEKING)
+    verify("rejected seek cannot erase or advance Continue Watching",
+        rejectedSeekStore.read().single().positionMs == 57_000L)
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(canSeek = false)
+    rejectedSeek.refresh()
+    verify("known non-seekable decoder returns false and avoids native seek",
+        !rejectedSeek.seekTo(112_000L) && rejectedSeekNative.seekCalls == 1)
+    rejectedSeekNative.current = rejectedSeekNative.current.copy(canSeek = true)
+    rejectedSeek.refresh()
+    verify("accepted seek returns issued but never claims immediate completion",
+        rejectedSeek.seekBy(10_000L) && rejectedSeekNative.seekCalls == 2 &&
+        rejectedSeek.seekDisplayPosition() == 67_000L)
+    rejectedSeek.onBackground()
+    val beforeBackgroundSeek = rejectedSeekNative.seekCalls
+    verify("background remote seek never reaches native decoder",
+        !rejectedSeek.seekBy(10_000L) && rejectedSeekNative.seekCalls == beforeBackgroundSeek)
+    val beforeBackgroundDecoder = rejectedSeekEngines.size
+    rejectedSeek.retry()
+    rejectedSeek.play()
+    verify("background Play and Retry never allocate a fresh decoder",
+        rejectedSeekEngines.size == beforeBackgroundDecoder && !rejectedSeek.wantsPlay)
+    rejectedSeek.close()
+
     println("PASS: $counter session ownership/behavior checks")
 }

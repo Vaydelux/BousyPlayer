@@ -175,3 +175,34 @@ assert 'event == Lifecycle.Event.ON_START && session == null' in activitySourceV
 assert 'recents = recentsStore.readAccessible()' in activitySourceV31, 'SAF grant restoration must make history cards visible again'
 assert 'lifecycle.lifecycle.removeObserver(observer)' in activitySourceV31, 'Activity foreground history observer must be removed'
 print('PASS: background-to-home SAF permission refresh without irreversible history loss')
+
+media3 = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/Media3Engine.kt').read_text()
+mpv = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/MpvEngine.kt').read_text()
+vlc = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/VlcEngine.kt').read_text()
+for engineName, engineSource in [('Media3', media3), ('libmpv', mpv), ('LibVLC', vlc)]:
+    assert 'override fun seek(positionMs: Long)' in engineSource and 'throw IllegalStateException("Seek unavailable")' in engineSource, f'{engineName} must reject stale/unseekable seek commands'
+smokeSource = Path('tools/native-smoke/NativeSmoke.kt').read_text()
+assert 'libmpv silently accepted an unseekable user request' in smokeSource, 'Missing libmpv seek rejection regression'
+assert 'LibVLC silently accepted an unseekable user request' in smokeSource, 'Missing LibVLC seek rejection regression'
+assert 'native rejection cannot create a fake pending seek' in Path('tools/session-smoke/SessionSmoke.kt').read_text(), 'Missing session seek rejection case'
+print('PASS: all decoders reject unseekable seeks and preserve truthfulness of session progress')
+
+sourceV33 = Path('app/src/main/java/com/vaydelux/bousyplayer/ui/PlayerScreen.kt').read_text()
+sessionV33 = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/PlayerSession.kt').read_text()
+assert 'val issued = session.seekBy(10_000)' in sourceV33 and 'val issued = session.seekBy(-10_000)' in sourceV33, 'HUD must react to actual seek command result'
+assert '"Seek unavailable"' in sourceV33 and 'requested ·' in sourceV33, 'D-pad feedback must not misreport rejected seek'
+assert 'fun seekTo(ms: Long): Boolean' in sessionV33 and 'fun seekBy(deltaMs: Long): Boolean' in sessionV33, 'Seek commands must expose acceptance'
+assert 'if (closed || backgrounded || !snapshot.canSeek' in sessionV33, 'Seek rejected in background'
+assert 'if (closed || backgrounded) return' in sessionV33, 'Background play/retry guard missing'
+print('PASS: D-pad seek feedback tracks issued command and background transport is gated')
+
+vlcStatusSource = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/VlcEngine.kt').read_text()
+# Inspect only authoritative snapshot fields. Async recovery and event handlers
+# may intentionally use best-effort status reads without saving progress.
+assert vlcStatusSource.count('    override fun snapshot(): PlaybackSnapshot {') == 1, 'LibVLC snapshot function missing'
+vlcStatusSnapshot = vlcStatusSource.split('    override fun snapshot(): PlaybackSnapshot {', 1)[1].split('    override fun play()', 1)[0]
+for field in ('native.time', 'native.length', 'native.isPlaying', 'native.isSeekable'):
+    assert f'runCatching {{ {field} }}.getOrDefault' not in vlcStatusSnapshot, f'Critical LibVLC {field} snapshot status must not silently become 0 or false'
+assert 'val nativePosition = native.time.coerceAtLeast(0L)' in vlcStatusSnapshot, 'LibVLC timeline must propagate failures to session status policy'
+assert 'LibVLC snapshot read faults propagate' in smokeSource, 'Missing LibVLC transient snapshot failure regression'
+print('PASS: failed LibVLC native timeline/control reads never manufacture valid status')

@@ -247,13 +247,20 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
             cachedTracks = (audioTracks + subs).take(80)
             lastTrackPollMs = now
         }
-        val nativePlaying = runCatching { native.isPlaying }.getOrDefault(false)
+        // Timeline/control JNI reads are authoritative. Masking a thrown
+        // getter with 0:00/false would corrupt Continue Watching and could
+        // disguise a transient native-status failure as an ordinary pause.
+        // Let PlayerSession's bounded snapshot-fault policy quarantine it.
+        val nativePlaying = native.isPlaying
+        val nativePosition = native.time.coerceAtLeast(0L)
+        val nativeDuration = native.length.coerceAtLeast(0L)
+        val nativeSeekable = native.isSeekable
         return PlaybackSnapshot(
-            position = runCatching { native.time }.getOrDefault(0L).coerceAtLeast(0),
-            duration = runCatching { native.length }.getOrDefault(0L).coerceAtLeast(0),
+            position = nativePosition,
+            duration = nativeDuration,
             buffered = 0,
             isPlaying = nativePlaying,
-            canSeek = runCatching { native.isSeekable }.getOrDefault(false),
+            canSeek = nativeSeekable,
             loading = opening && !nativePlaying,
             ended = finished,
             error = errorMessage,
@@ -276,11 +283,11 @@ class VlcEngine(private val context: Context) : PlaybackEngine {
         if (!released && native.isPlaying) native.pause()
     }
     override fun seek(positionMs: Long) {
-        if (released || !native.isSeekable) return
+        if (released || !native.isSeekable) throw IllegalStateException("Seek unavailable")
         // Native resume retry runs on delayed callbacks. A successful user seek
         // supersedes the old saved resume, or the subsequent Playing event would
         // incorrectly jump back to the previous Continue Watching timestamp.
-        native.setTime(positionMs.coerceAtLeast(0))
+        native.setTime(positionMs.coerceAtLeast(0L))
         resumePosition = 0L
     }
     override fun speed(value: Float) { if (!released) native.rate = value }

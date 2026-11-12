@@ -53,6 +53,13 @@ fun main() {
     (overrideEngine.view as SurfaceView).holder.create()
     overrideFake.setSeekable(false)
     overrideFake.emitEvent(MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED)
+    // When native seekability changes after the last session snapshot, the
+    // adapter must reject the request rather than silently acknowledging it.
+    val beforeRejectedMpv = overrideFake.commands.count { it.firstOrNull() == "seek" }
+    check(runCatching { overrideEngine.seek(91_000L) }.isFailure &&
+        overrideFake.commands.count { it.firstOrNull() == "seek" } == beforeRejectedMpv) {
+        "libmpv silently accepted an unseekable user request"
+    }
     overrideFake.setSeekable(true)
     overrideEngine.seek(92_000L)
     android.os.Handler.drainDelayedOnce()
@@ -138,6 +145,13 @@ fun main() {
     seekVlc.load(uri, 82_000L, true)
     val seekNative = checkNotNull(MediaPlayer.last)
     (seekVlc.view as SurfaceView).holder.create()
+    seekNative.isSeekable = false
+    val beforeRejectedVlc = seekNative.time
+    check(runCatching { seekVlc.seek(91_000L) }.isFailure &&
+        seekNative.time == beforeRejectedVlc) {
+        "LibVLC silently accepted an unseekable user request"
+    }
+    seekNative.isSeekable = true
     seekVlc.seek(92_000L)
     seekNative.emit(MediaPlayer.Event.Playing)
     android.os.Handler.drainDelayedOnce()
@@ -149,6 +163,34 @@ fun main() {
         "VLC manual-seek test leaked an SAF descriptor"
     }
     println("PASS: LibVLC manual seek supersedes delayed saved resume")
+
+    // A native read exception is unknown status, not a valid 0:00 timestamp.
+    // The real PlayerSession owns retries and preserves the trusted timeline.
+    val statusVlc = VlcEngine(context)
+    statusVlc.load(uri, 44_000L, false)
+    val statusNative = checkNotNull(MediaPlayer.last)
+    statusNative.setTime(44_000L)
+    statusNative.failNextPositionRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a failed time getter as a valid 0:00 timeline"
+    }
+    check(statusVlc.snapshot().position == 44_000L) {
+        "LibVLC did not recover after one transient timeline read fault"
+    }
+    statusNative.failNextDurationRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a duration failure as an unknown zero duration"
+    }
+    statusNative.failNextPlayingRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a native isPlaying exception as a pause"
+    }
+    statusNative.failNextSeekableRead = true
+    check(runCatching { statusVlc.snapshot() }.isFailure) {
+        "LibVLC masked a native seekability read failure"
+    }
+    statusVlc.release()
+    println("PASS: LibVLC snapshot read faults propagate to bounded session recovery without fake 0:00")
 
     // Hammer Android's SurfaceHolder lifecycle without starting multiple
     // video renderers, retaining a stale output or reopening the video.

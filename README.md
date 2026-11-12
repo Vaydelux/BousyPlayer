@@ -1,8 +1,8 @@
-# Bousy Player v0.32 — Android TV / phone / tablet
+# Bousy Player v0.33 — Android TV / phone / tablet
 
 A separate, Bousygram-inspired Android media-player source project written in Kotlin and Jetpack Compose. Supports opening user-chosen local SAF documents and HTTPS streams. The original Bousygram repository is not modified. No Telegram account, TDLib, embedding tools, DRM bypass, or proprietary streaming service is required.
 
-> **Qualification status:** v0.31 merged into main and published ARM32/ARM64 debug APKs plus security evidence in [the v0.31 prerelease](https://github.com/Vaydelux/BousyPlayer/releases/tag/debug-v0.31-77d2d708). v0.32 adds fail-closed APK signing-certificate consistency checks and a verified manifest linking the exact release asset hashes, source commit and CI run. Its own CI and release qualification are pending. Neither is a production-signing or device-certification claim.
+> **Qualification status:** v0.32 release-integrity safeguards merged into main (commit c33504f2), but the main-only GitHub release job was still queued at the last verification; its signer/asset verification and APK output remain unverified. v0.33 introduces explicit native seek rejection and CI concurrency hygiene. v0.33 full Android CI and hardware qualification are pending.
 
 ## v0.13 core hardening
 
@@ -163,6 +163,15 @@ A separate, Bousygram-inspired Android media-player source project written in Ko
 - **Fail-closed publishing:** The main-only release workflow first generates the manifest, checks every artifact hash/size/name and complete expected asset set against real files, validates the checksum file, then permits `gh release create`. Any artifact tampering, duplicate checksums, unexpected files, mismatched commit or missing signature report must block release.
 - **Offline adversarial tests:** Both preflight workflows run regression fixtures for tampered APKs, altered manifest metadata, missing/unexpected artifacts, duplicate checksums, invalid signers and v1-only signing.
 - **Scope:** Hash files and cert fingerprints are *not* signed provenance, developer identity, reproducibility, SLSA attestation, or a commercial production release. Hardware playback, native CVE mapping and redistribution-license audits remain open.
+
+
+## v0.33 — Truthful seek failures across all decoders
+
+- **Media3 / LibVLC / libmpv:** Each engine now rechecks native seekability at command time. If it becomes non-seekable after the session's last 400ms poll, the adapter throws a stable non-identifying `Seek unavailable` exception instead of silently ignoring the request. The session already catches native seek failures, shows neutral guidance, and does **not** mark an unexecuted target pending.
+- **No false Continue Watching jumps:** A native rejection cannot create fake seek confirmation or replace a trusted saved position; the last decoder-confirmed position remains authoritative.
+- **Tested negative behavior:** Real mpv/LibVLC adapters run under native-surface fakes that toggle seekability immediately before a manual command. The actual PlayerSession runs against a throwing engine and verifies no fabricated pending seek or history overwrite. Media3 has a source-level policy check plus Android compilation.
+- **CI resource discipline:** Each newer commit cancels older **same-event** feature-branch or PR checks, rather than wasting GitHub Actions runner time on superseded source revisions. Push and PR checks remain separate; main-only prerelease publishing is unchanged. This cannot fix a provider-level Actions scheduling backlog.
+- Hardware codec, remote, low-RAM soak, and v0.32/v0.33 production signing are still not certified.
 
 
 ## Current source capabilities

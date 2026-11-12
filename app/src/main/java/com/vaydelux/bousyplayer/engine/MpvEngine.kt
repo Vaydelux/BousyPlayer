@@ -292,12 +292,15 @@ class MpvEngine(private val context: Context) : PlaybackEngine {
     }
     override fun pause() { intendedPlay = false; if (!released) native.setPropertyBoolean("pause", true) }
     override fun seek(positionMs: Long) {
-        if (!released && fileLoaded && native.getPropertyBoolean("seekable") == true) {
-            // Explicit D-pad/timeline seeking must supersede a pending saved resume.
-            // Clear the old request only after the native seek command succeeds.
-            native.command(arrayOf("seek", (positionMs.coerceAtLeast(0L) / 1000.0).toString(), "absolute"))
-            seekAfterLoadMs = 0L
+        // Treat changing/destroyed decoder seekability as a rejection, never as
+        // success; PlayerSession must not mark an unexecuted seek pending.
+        if (released || !fileLoaded || native.getPropertyBoolean("seekable") != true) {
+            throw IllegalStateException("Seek unavailable")
         }
+        // Explicit D-pad/timeline seeking must supersede a pending saved resume.
+        // Clear the old request only after the native seek command succeeds.
+        native.command(arrayOf("seek", (positionMs.coerceAtLeast(0L) / 1000.0).toString(), "absolute"))
+        seekAfterLoadMs = 0L
     }
     override fun speed(value: Float) {
         speedValue = value

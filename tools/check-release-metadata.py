@@ -56,6 +56,7 @@ assert 'contents: write' not in qualification_workflow, 'PR builds must never ha
 assert 'gh release create' not in qualification_workflow, 'PR builds must not publish'
 assert 'pull_request:' in qualification_workflow, 'PR qualification trigger missing'
 assert 'branches-ignore: [main]' in qualification_workflow, 'Main should not build twice'
+assert 'cancel-in-progress: true' in qualification_workflow and 'github.event_name' in qualification_workflow and 'github.head_ref' in qualification_workflow, 'Superseded same-event Android PR/feature builds must cancel'
 assert 'on:\\n  push:\\n    branches: [main]'.replace('\\n','\n') in workflow, 'Release must trigger only on main'
 assert 'pull_request:' not in workflow, 'Release must not trigger from pull requests'
 assert 'contents: write' in workflow, 'Main-only publisher needs write scope'
