@@ -197,8 +197,12 @@ assert 'if (closed || backgrounded) return' in sessionV33, 'Background play/retr
 print('PASS: D-pad seek feedback tracks issued command and background transport is gated')
 
 vlcStatusSource = Path('app/src/main/java/com/vaydelux/bousyplayer/engine/VlcEngine.kt').read_text()
+# Inspect only authoritative snapshot fields. Async recovery and event handlers
+# may intentionally use best-effort status reads without saving progress.
+assert vlcStatusSource.count('    override fun snapshot(): PlaybackSnapshot {') == 1, 'LibVLC snapshot function missing'
+vlcStatusSnapshot = vlcStatusSource.split('    override fun snapshot(): PlaybackSnapshot {', 1)[1].split('    override fun play()', 1)[0]
 for field in ('native.time', 'native.length', 'native.isPlaying', 'native.isSeekable'):
-    assert f'runCatching {{ {field} }}.getOrDefault' not in vlcStatusSource, f'Critical LibVLC {field} status must not silently become 0 or false'
-assert 'val nativePosition = native.time.coerceAtLeast(0L)' in vlcStatusSource, 'LibVLC timeline must propagate failures to session status policy'
+    assert f'runCatching {{ {field} }}.getOrDefault' not in vlcStatusSnapshot, f'Critical LibVLC {field} snapshot status must not silently become 0 or false'
+assert 'val nativePosition = native.time.coerceAtLeast(0L)' in vlcStatusSnapshot, 'LibVLC timeline must propagate failures to session status policy'
 assert 'LibVLC snapshot read faults propagate' in smokeSource, 'Missing LibVLC transient snapshot failure regression'
 print('PASS: failed LibVLC native timeline/control reads never manufacture valid status')
