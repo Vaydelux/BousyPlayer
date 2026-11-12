@@ -93,23 +93,26 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
           test -n "$SDKMANAGER"
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "platforms;android-36" "build-tools;36.0.0"
-      - name: Enable KVM hardware acceleration
+      - name: Enable KVM when available; allow Android ATD software fallback
         run: |
           set -euo pipefail
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
-            sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          test -r /dev/kvm && test -w /dev/kvm
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod a+rw /dev/kvm
+            test -r /dev/kvm && test -w /dev/kvm
+            echo "KVM acceleration enabled"
+          else
+            echo "::warning::KVM not exposed by runner; using ATD emulator software acceleration"
+          fi
       - name: Run Android lifecycle / SAF privacy tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          target: google_apis
+          target: aosp_atd
           arch: x86_64
           profile: pixel_6
           ram-size: 2048M
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
+          disable-linux-hw-accel: auto
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # The x86_64 ABI exists ONLY in this temporary CI build.
